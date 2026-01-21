@@ -65,4 +65,5 @@ elif menu == "🗄️ Arsip Website":
             df_view.to_excel(writer, index=False)
         st.download_button("📥 Download Excel", output.getvalue(), f"Absensi_{tgl_sekarang}.xlsx")
     except:
+
         st.info("Belum ada data.")
