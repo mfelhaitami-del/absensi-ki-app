@@ -1,82 +1,40 @@
 import streamlit as st
-from st_gsheets_connection import GSheetsConnection
 import pandas as pd
 import datetime
 import requests
-from io import BytesIO
 
-# --- 1. KONFIGURASI API ---
+# --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbziJDBwWIM6NAsi4ZqBcnOMkmhwrjCbCg5TzvguDmW5VvQnVj0OeyOOLr4u4j4sWRjl/exec"
 
-st.set_page_config(page_title="Absensi Tim KI", layout="wide")
+st.set_page_config(page_title="Absensi Tim KI", layout="centered")
 
-# --- 2. KONEKSI GOOGLE SHEETS ---
-conn = st.connection("gsheets", type=GSheetsConnection)
-
-# --- 3. LOGIKA WAKTU WIB ---
 waktu_wib = datetime.datetime.now() + datetime.timedelta(hours=7)
-tgl_sekarang = waktu_wib.strftime("%Y-%m-%d")
-jam_skrg = waktu_wib.strftime("%H:%M:%S")
+st.title("📸 Absensi Foto Real-Time")
 
-st.sidebar.title("Navigasi")
-menu = st.sidebar.radio("Menu", ["📍 Presensi", "🗄️ Arsip Website"])
+daftar_nama = ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"]
 
-if menu == "📍 Presensi":
-    st.header("📍 Presensi Kehadiran")
-    
-    daftar_nama = [
-        "Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", 
-        "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", 
-        "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"
-    ]
-    
-    nama = st.selectbox("Pilih Nama", daftar_nama)
-    foto = st.camera_input("Ambil Foto Wajah")
+nama = st.selectbox("Pilih Nama", daftar_nama)
+foto = st.camera_input("Ambil Foto Wajah")
 
-    if st.button("Kirim Absen"):
-        if foto is not None:
-            with st.spinner("Sedang mengirim data..."):
-                try:
-                    # Upload ke ImgBB
-                    files = {"image": foto.getvalue()}
-                    resp = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=files)
-                    link_foto = resp.json()["data"]["url"]
+if st.button("Kirim Absen"):
+    if foto:
+        with st.spinner("Mengirim ke Google Sheets..."):
+            # 1. Upload ke ImgBB
+            files = {"image": foto.getvalue()}
+            resp = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=files)
+            link_foto = resp.json()["data"]["url"]
 
-                    # Ambil data lama & tambah baru
-                    df_lama = conn.read(ttl=0).dropna(how="all")
-                    data_baru = pd.DataFrame([{
-                        "Nama": nama,
-                        "Tanggal": tgl_sekarang,
-                        "Jam": jam_skrg,
-                        "Foto_Link": link_foto,
-                        "Preview_Foto": f'=IMAGE("{link_foto}")'
-                    }])
-
-                    df_final = pd.concat([df_lama, data_baru], ignore_index=True)
-                    conn.update(data=df_final)
-                    
-                    st.cache_data.clear()
-                    st.success(f"✅ Berhasil! {nama} tercatat jam {jam_skrg} WIB.")
-                    st.balloons()
-                    
-                except Exception as e:
-                    st.error(f"Error saat kirim: {e}")
-        else:
-            st.warning("Silakan ambil foto!")
-
-elif menu == "🗄️ Arsip Website":
-    st.header("🗄️ Arsip Data Absensi")
-    try:
-        df_view = conn.read(ttl=0).dropna(how="all")
-        if not df_view.empty:
-            st.dataframe(df_view, use_container_width=True)
+            # 2. Kirim ke Google Sheets lewat Web App
+            data = {
+                "nama": nama,
+                "tanggal": waktu_wib.strftime("%Y-%m-%d"),
+                "jam": waktu_wib.strftime("%H:%M:%S"),
+                "foto_link": link_foto
+            }
             
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df_view.to_excel(writer, index=False)
-            st.download_button("📥 Download Excel", output.getvalue(), f"Absensi_{tgl_sekarang}.xlsx")
-        else:
-            st.info("Belum ada data.")
-    except:
-        st.error("Gagal membaca database. Cek koneksi Sheets.")
-
+            # Kirim data tanpa library ribet
+            requests.post(WEBAPP_URL, json=data)
+            st.success(f"✅ Berhasil! Data {nama} sudah masuk ke Sheets.")
+    else:
+        st.warning("Ambil foto dulu!")
