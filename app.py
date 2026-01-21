@@ -1,5 +1,5 @@
 import streamlit as st
-from st_gsheets_connection import GSheetsConnection
+from st-gsheets-connection import GSheetsConnection
 import pandas as pd
 import datetime
 import requests
@@ -67,4 +67,5 @@ elif menu == "🗄️ Arsip Website":
     except:
 
         st.info("Belum ada data.")
+
 
