@@ -7,81 +7,75 @@ from io import BytesIO
 
 # --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzYQNPs6BWoNNLJt1vVi4ro8Nj2D4KiGKwhss2_wYBbVx3tcnoOiKC3Z0AXiG7wwstp/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzDDGyZ3Dd6WULlAe33zOd6xdihasTMVDVN_6xxaDFMV-54hmAqvE4B1Wm58OpOqhpD/exec"
 
-st.set_page_config(page_title="Absensi Tim KI", layout="wide")
+st.set_page_config(page_title="Absensi KI", layout="wide")
 
-# Logika Waktu
-waktu_wib = datetime.datetime.now() + datetime.timedelta(hours=7)
-tgl_hari_ini = waktu_wib.strftime("%Y-%m-%d")
+waktu_now = datetime.datetime.now() + datetime.timedelta(hours=7)
+tgl_skrg = waktu_now.strftime("%Y-%m-%d")
+jam_skrg_int = waktu_now.hour
 
-# --- SIDEBAR NAVIGASI ---
-menu = st.sidebar.selectbox("Pilih Menu", ["📍 Absensi", "📊 Rekap Absensi"])
+# Penentuan Status
+status_absen = None
+if 6 <= jam_skrg_int < 12:
+    status_absen = "MASUK"
+elif 13 <= jam_skrg_int < 18:
+    status_absen = "PULANG"
+else:
+    status_absen = "TUTUP"
 
-if menu == "📍 Absensi":
-    st.title("📸 Absensi KI Satker PPS Banten")
-    daftar_nama = ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"]
+menu = st.sidebar.selectbox("Pilih Menu", ["📍 Presensi", "📊 Rekap Absensi"])
+
+if menu == "📍 Presensi":
+    st.title("📸 Absensi Tim KI")
+    st.info(f"📅 {tgl_skrg} | ⏰ {waktu_now.strftime('%H:%M:%S')}")
     
-    nama = st.selectbox("Pilih Nama Anda", daftar_nama)
-    foto = st.camera_input("Ambil Foto Wajah")
+    if status_absen == "TUTUP":
+        st.error("Sistem Absensi Sedang Tutup (Buka: 06-12 & 13-18)")
+    else:
+        st.subheader(f"Sesi: ABSEN {status_absen}")
+        daftar_nama = ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"]
+        nama = st.selectbox("Pilih Nama", daftar_nama)
+        foto = st.camera_input("Ambil Foto")
 
-    if st.button("Kirim Absen"):
-        if foto:
-            with st.spinner("Mengirim data..."):
-                try:
-                    # Proses Non-Mirror
-                    img = Image.open(foto)
-                    img_real = ImageOps.mirror(img)
-                    buf = BytesIO()
-                    img_real.save(buf, format="JPEG")
-                    byte_im = buf.getvalue()
+        if st.button(f"Kirim Absen {status_absen}"):
+            if foto:
+                with st.spinner("Mengupload data..."):
+                    try:
+                        img = Image.open(foto)
+                        img_real = ImageOps.mirror(img) # Mengatasi mirror
+                        buf = BytesIO()
+                        img_real.save(buf, format="JPEG")
+                        
+                        files = {"image": buf.getvalue()}
+                        resp = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=files)
+                        link_foto = resp.json()["data"]["url"]
 
-                    # Upload ImgBB
-                    files = {"image": byte_im}
-                    resp = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=files)
-                    link_foto = resp.json()["data"]["url"]
-
-                    # Kirim ke Sheets
-                    data = {
-                        "nama": nama,
-                        "tanggal": tgl_hari_ini,
-                        "jam": waktu_wib.strftime("%H:%M:%S"),
-                        "foto_link": link_foto
-                    }
-                    requests.post(WEBAPP_URL, json=data)
-                    st.success(f"✅ Berhasil! Absensi {nama} tercatat.")
-                except Exception as e:
-                    st.error(f"Gagal: {e}")
-        else:
-            st.warning("Ambil foto dulu!")
+                        payload = {
+                            "nama": nama, "tanggal": tgl_skrg, 
+                            "jam": waktu_now.strftime("%H:%M:%S"),
+                            "status": status_absen, "foto_link": link_foto
+                        }
+                        requests.post(WEBAPP_URL, json=payload)
+                        st.success(f"✅ Berhasil! Foto sudah masuk ke Spreadsheet.")
+                    except:
+                        st.error("Terjadi kesalahan saat upload.")
+            else:
+                st.warning("Ambil foto dulu!")
 
 elif menu == "📊 Rekap Absensi":
-    st.title("📊 Rekap Absensi Tim KI")
-    st.write(f"Data absensi yang tercatat di Google Sheets (Per {tgl_hari_ini})")
-    
-    if st.button("🔄 Segarkan Data"):
+    st.title("📊 Rekap Absensi")
+    if st.button("🔄 Refresh Data"):
         st.cache_data.clear()
-
-    with st.spinner("Mengambil data dari Google Sheets..."):
-        try:
-            # Ambil data lewat Apps Script (GET request)
-            response = requests.get(WEBAPP_URL)
-            all_data = response.json()
-            
-            if all_data:
-                df = pd.DataFrame(all_data)
-                
-                # Mengatur tampilan tabel
-                df = df[["nama", "tanggal", "jam", "foto_link"]]
-                
-                # Menampilkan tabel interaktif
-                st.dataframe(df, use_container_width=True)
-                
-                # Tombol Download Excel/CSV
-                csv = df.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Download Data (CSV)", csv, f"rekap_absensi_{tgl_hari_ini}.csv", "text/csv")
-            else:
-                st.info("Belum ada data absensi di Google Sheets.")
-        except Exception as e:
-            st.error(f"Gagal mengambil data: {e}")
-
+    
+    try:
+        res = requests.get(WEBAPP_URL)
+        df = pd.DataFrame(res.json())
+        if not df.empty:
+            df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang", "Link Foto"]
+            # Tampilkan tabel dengan kolom link yang bisa diklik
+            st.dataframe(df, use_container_width=True)
+        else:
+            st.info("Belum ada data.")
+    except:
+        st.error("Gagal mengambil data rekap.")
