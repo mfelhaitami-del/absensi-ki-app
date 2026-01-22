@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 import requests
-from PIL import Image, ImageOps
+from PIL import Image
 from io import BytesIO
 
 # --- KONFIGURASI ---
@@ -11,12 +11,16 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbziJDBwWIM6NAsi4ZqBcnOMkmh
 
 st.set_page_config(page_title="Absensi Tim KI", layout="centered")
 
-# --- CSS UNTUK KAMERA REAL (TIDAK MIRROR) ---
+# --- CSS SAKTI UNTUK KAMERA REAL (ANTI-MIRROR) ---
 st.markdown("""
     <style>
-    /* Mengakses elemen video kamera dan mematikannya efek mirror-nya */
+    /* Memaksa semua elemen video untuk tidak mirror */
     video {
         -webkit-transform: scaleX(1) !important;
+        transform: scaleX(1) !important;
+    }
+    /* Tambahan untuk memastikan container juga tidak memutar balik */
+    [data-testid="stCameraInput"] video {
         transform: scaleX(1) !important;
     }
     </style>
@@ -32,12 +36,11 @@ foto = st.camera_input("Ambil Foto Wajah")
 
 if st.button("Kirim Absen"):
     if foto:
-        with st.spinner("Memproses foto & mengirim data..."):
+        with st.spinner("Mengirim data..."):
             try:
-                # Kita ambil foto apa adanya (tanpa proses mirror lagi di kode)
+                # Ambil foto mentah (karena tampilan sudah real, hasil juga akan real)
                 img = Image.open(foto)
                 
-                # Simpan ke memori untuk diupload
                 buf = BytesIO()
                 img.save(buf, format="JPEG")
                 byte_im = buf.getvalue()
@@ -57,8 +60,8 @@ if st.button("Kirim Absen"):
                 
                 requests.post(WEBAPP_URL, json=data)
                 
-                # Menampilkan pesan sukses saja tanpa st.balloons()
-                st.success(f"✅ Berhasil! Absensi {nama} telah tersimpan.")
+                # Pesan sukses tanpa balon
+                st.success(f"✅ Berhasil! Absensi {nama} tercatat.")
                 
             except Exception as e:
                 st.error(f"Terjadi kesalahan: {e}")
