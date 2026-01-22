@@ -19,7 +19,7 @@ jam_skrg_int = waktu_now.hour
 status_absen = None
 if 6 <= jam_skrg_int < 12:
     status_absen = "MASUK"
-elif 13 <= jam_skrg_int < 18:
+elif 13 <= jam_skrg_int < 22:
     status_absen = "PULANG"
 else:
     status_absen = "TUTUP"
@@ -79,4 +79,5 @@ elif menu == "📊 Rekap Absensi":
             st.info("Belum ada data.")
     except:
         st.error("Gagal mengambil data rekap.")
+
 
