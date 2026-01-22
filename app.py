@@ -11,8 +11,19 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbziJDBwWIM6NAsi4ZqBcnOMkmh
 
 st.set_page_config(page_title="Absensi Tim KI", layout="centered")
 
+# --- CSS UNTUK KAMERA REAL (TIDAK MIRROR) ---
+st.markdown("""
+    <style>
+    /* Mengakses elemen video kamera dan mematikannya efek mirror-nya */
+    video {
+        -webkit-transform: scaleX(1) !important;
+        transform: scaleX(1) !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 waktu_wib = datetime.datetime.now() + datetime.timedelta(hours=7)
-st.title("📸 Absensi KI Satker PPS Banten")
+st.title("📸 Absensi Foto Real-Time")
 
 daftar_nama = ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"]
 
@@ -23,14 +34,12 @@ if st.button("Kirim Absen"):
     if foto:
         with st.spinner("Memproses foto & mengirim data..."):
             try:
-                # --- PROSES UN-MIRROR FOTO ---
+                # Kita ambil foto apa adanya (tanpa proses mirror lagi di kode)
                 img = Image.open(foto)
-                # Membalik foto secara horizontal agar tidak mirror
-                img_fixed = ImageOps.mirror(img)
                 
                 # Simpan ke memori untuk diupload
                 buf = BytesIO()
-                img_fixed.save(buf, format="JPEG")
+                img.save(buf, format="JPEG")
                 byte_im = buf.getvalue()
 
                 # 1. Upload ke ImgBB
@@ -47,10 +56,11 @@ if st.button("Kirim Absen"):
                 }
                 
                 requests.post(WEBAPP_URL, json=data)
-                st.success(f"✅ Berhasil! Foto {nama} sudah tidak mirror dan tersimpan di Sheets.")
-                st.balloons()
+                
+                # Menampilkan pesan sukses saja tanpa st.balloons()
+                st.success(f"✅ Berhasil! Absensi {nama} telah tersimpan.")
+                
             except Exception as e:
                 st.error(f"Terjadi kesalahan: {e}")
     else:
         st.warning("Ambil foto dulu!")
-
