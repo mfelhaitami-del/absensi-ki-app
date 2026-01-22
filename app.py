@@ -12,7 +12,7 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbziJDBwWIM6NAsi4ZqBcnOMkmh
 st.set_page_config(page_title="Absensi Tim KI", layout="centered")
 
 waktu_wib = datetime.datetime.now() + datetime.timedelta(hours=7)
-st.title("📸 Absensi Foto Real-Time")
+st.title("📸 Absensi KI Satker PPS Banten")
 
 daftar_nama = ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"]
 
@@ -53,3 +53,4 @@ if st.button("Kirim Absen"):
                 st.error(f"Terjadi kesalahan: {e}")
     else:
         st.warning("Ambil foto dulu!")
+
