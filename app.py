@@ -16,10 +16,10 @@ waktu_wib = datetime.datetime.now() + datetime.timedelta(hours=7)
 tgl_hari_ini = waktu_wib.strftime("%Y-%m-%d")
 
 # --- SIDEBAR NAVIGASI ---
-menu = st.sidebar.selectbox("Pilih Menu", ["📍 Presensi", "📊 Rekap Absensi"])
+menu = st.sidebar.selectbox("Pilih Menu", ["📍 Absensi", "📊 Rekap Absensi"])
 
-if menu == "📍 Presensi":
-    st.title("📸 Absensi Foto Real-Time")
+if menu == "📍 Absensi":
+    st.title("📸 Absensi KI Satker PPS Banten")
     daftar_nama = ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"]
     
     nama = st.selectbox("Pilih Nama Anda", daftar_nama)
@@ -84,3 +84,4 @@ elif menu == "📊 Rekap Absensi":
                 st.info("Belum ada data absensi di Google Sheets.")
         except Exception as e:
             st.error(f"Gagal mengambil data: {e}")
+
