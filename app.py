@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 import requests
-from PIL import Image
+from PIL import Image, ImageOps
 from io import BytesIO
 
 # --- KONFIGURASI ---
@@ -11,21 +11,7 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbziJDBwWIM6NAsi4ZqBcnOMkmh
 
 st.set_page_config(page_title="Absensi Tim KI", layout="centered")
 
-# --- CSS SAKTI UNTUK KAMERA REAL (ANTI-MIRROR) ---
-st.markdown("""
-    <style>
-    /* Memaksa semua elemen video untuk tidak mirror */
-    video {
-        -webkit-transform: scaleX(1) !important;
-        transform: scaleX(1) !important;
-    }
-    /* Tambahan untuk memastikan container juga tidak memutar balik */
-    [data-testid="stCameraInput"] video {
-        transform: scaleX(1) !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
+# Menggunakan waktu WIB
 waktu_wib = datetime.datetime.now() + datetime.timedelta(hours=7)
 st.title("📸 Absensi Foto Real-Time")
 
@@ -36,21 +22,26 @@ foto = st.camera_input("Ambil Foto Wajah")
 
 if st.button("Kirim Absen"):
     if foto:
-        with st.spinner("Mengirim data..."):
+        with st.spinner("Mengolah foto agar tidak mirror..."):
             try:
-                # Ambil foto mentah (karena tampilan sudah real, hasil juga akan real)
+                # 1. Buka foto yang diambil
                 img = Image.open(foto)
                 
+                # 2. PROSES PEMBALIKAN (Agar hasil jadi REAL / Non-Mirror)
+                # Karena kamera depan aslinya mirror, kita balik secara horizontal
+                img_real = ImageOps.mirror(img)
+                
+                # Simpan ke memori
                 buf = BytesIO()
-                img.save(buf, format="JPEG")
+                img_real.save(buf, format="JPEG")
                 byte_im = buf.getvalue()
 
-                # 1. Upload ke ImgBB
+                # 3. Upload ke ImgBB
                 files = {"image": byte_im}
                 resp = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=files)
                 link_foto = resp.json()["data"]["url"]
 
-                # 2. Kirim ke Google Sheets lewat Web App
+                # 4. Kirim ke Google Sheets
                 data = {
                     "nama": nama,
                     "tanggal": waktu_wib.strftime("%Y-%m-%d"),
@@ -60,8 +51,7 @@ if st.button("Kirim Absen"):
                 
                 requests.post(WEBAPP_URL, json=data)
                 
-                # Pesan sukses tanpa balon
-                st.success(f"✅ Berhasil! Absensi {nama} tercatat.")
+                st.success(f"✅ Berhasil! Hasil foto sudah diproses agar tidak mirror.")
                 
             except Exception as e:
                 st.error(f"Terjadi kesalahan: {e}")
