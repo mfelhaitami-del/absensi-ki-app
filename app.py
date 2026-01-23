@@ -27,7 +27,7 @@ else:
 menu = st.sidebar.selectbox("Pilih Menu", ["📍 Absensi", "📊 Rekap Absensi"])
 
 if menu == "📍 Absensi":
-    st.title("📸 Absensi Tim KI Satker PPS Banten")
+    st.title("Absensi Tim KI Satker PPS Banten")
     st.info(f"📅 {tgl_skrg} | ⏰ {waktu_now.strftime('%H:%M:%S')}")
     
     if status_absen == "TUTUP":
@@ -79,5 +79,6 @@ elif menu == "📊 Rekap Absensi":
             st.info("Belum ada data.")
     except:
         st.error("Gagal mengambil data rekap.")
+
 
 
