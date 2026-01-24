@@ -51,7 +51,6 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
                         resp = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=files)
                         link_foto = resp.json()["data"]["url"]
                         
-                        # Kirim jam tepat sesuai WIB (Waktu Sidebar)
                         jam_fix = waktu_aktif.strftime("%H:%M:%S")
                         payload = {
                             "nama": nama_lengkap, 
@@ -67,7 +66,7 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
             else:
                 st.warning("⚠️ Ambil foto dulu!")
 
-# --- HALAMAN REKAP (PERBAIKAN TOTAL SINKRONISASI JAM) ---
+# --- HALAMAN REKAP (SINKRONISASI TOTAL) ---
 def halaman_rekap(waktu_aktif):
     st.markdown('<p class="hero-title" style="font-size:40px;">Rekap Data Bulanan</p>', unsafe_allow_html=True)
     
@@ -83,39 +82,47 @@ def halaman_rekap(waktu_aktif):
             res = requests.get(f"{WEBAPP_URL}?bulan={nama_tab}")
             data_json = res.json()
             if data_json:
-                # Load data dan paksa semua menjadi TEXT (agar tidak dihitung otomatis oleh pandas)
-                df = pd.DataFrame(data_json).astype(str)
+                # 1. Load data mentah tanpa konversi apapun
+                df = pd.DataFrame(data_json)
                 
-                # Hanya ambil 4 kolom pertama (Nama, Tanggal, Jam Masuk, Jam Pulang)
-                df = df.iloc[:, :4]
+                # 2. Hapus kolom foto (index 4) agar tabel bersih
+                if len(df.columns) >= 5:
+                    df = df.iloc[:, :4]
                 
-                # Membersihkan kolom Tanggal dari embel-embel jam sistem
+                # 3. Paksa SEMUA data menjadi string murni
+                df = df.astype(str)
+                
+                # 4. Fungsi pembersihan jam "keras"
+                def bersihkan_jam(val):
+                    if val == "None" or val == "nan" or val == "": return "-"
+                    # Jika formatnya 1899-12-30T07:00:00Z, ambil hanya 07:00:00
+                    if "T" in val:
+                        val = val.split("T")[1].split(".")[0].replace("Z", "")
+                    # Ambil 8 karakter pertama jika formatnya HH:mm:ss.SSS
+                    return val[:8]
+
+                # Terapkan pembersihan ke kolom Jam Masuk (index 2) & Jam Pulang (index 3)
+                df[df.columns[2]] = df[df.columns[2]].apply(bersihkan_jam)
+                df[df.columns[3]] = df[df.columns[3]].apply(bersihkan_jam)
+                
+                # Bersihkan Tanggal
                 df[df.columns[1]] = df[df.columns[1]].str.split('T').str[0]
-                
-                # --- LOGIKA SINKRONISASI JAM ---
-                # Jika jam mengandung selisih 7 jam (format ISO), kita ambil hanya teks jam aslinya saja
-                for i in [2, 3]:
-                    df[df.columns[i]] = df[df.columns[i]].str.extract(r'(\d{2}:\d{2}:\d{2})').fillna("-")
                 
                 df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]
                 
                 st.write(f"### 📋 Laporan: {nama_tab}")
-                # Menggunakan st.table agar tampilan jam statis dan TIDAK BERUBAH
-                st.table(df)
+                st.table(df) # Gunakan table agar format teks tidak berubah-ubah
             else:
                 st.info(f"ℹ️ Tidak ada data.")
-        except:
-            st.error("❌ Gagal memuat data. Periksa koneksi Database Anda.")
+        except Exception as e:
+            st.error(f"Gagal memproses data: {e}")
 
-# --- MAIN LOGIC ---
+# --- MAIN ---
 with st.sidebar:
     st.markdown("## 🏢 Dashboard KI")
     menu = st.selectbox("Navigasi", ["📍 Presensi", "📊 Rekap Absensi"], key="nav_menu")
     st.divider()
-    
-    # Kunci Penentu Waktu: WIB (UTC+7)
     waktu_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
-    
     st.markdown(f"""
     <div class="sidebar-time-box">
         📅 <b>{waktu_skrg.strftime('%d %B %Y')}</b><br>
@@ -127,7 +134,6 @@ if menu == "📍 Presensi":
     status_sesi = "TUTUP"
     if 6 <= waktu_skrg.hour < 12: status_sesi = "MASUK"
     elif 13 <= waktu_skrg.hour < 18: status_sesi = "PULANG"
-    
     halaman_presensi(waktu_skrg, status_sesi, waktu_skrg.strftime("%Y-%m-%d"))
     time.sleep(1)
     st.rerun()
