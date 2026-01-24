@@ -101,7 +101,7 @@ elif 13 <= jam_int < 18: status_absen = "PULANG"
 
 # --- HALAMAN PRESENSI ---
 if menu == "📍 Absensi":
-    st.markdown('<p class="hero-title">Absensi Tim KI</p>', unsafe_allow_html=True)
+    st.markdown('<p class="hero-title">Absensi Tim KI Satker PPS Banten</p>', unsafe_allow_html=True)
     st.markdown('<p class="hero-subtitle">Sistem Pencatatan Kehadiran Digital Real-Time</p>', unsafe_allow_html=True)
     
     if status_absen == "TUTUP":
@@ -164,4 +164,5 @@ elif menu == "📊 Rekap Absensi":
 # --- AUTO REFRESH SETIAP 1 DETIK ---
 time.sleep(1)
 st.rerun()
+
 
