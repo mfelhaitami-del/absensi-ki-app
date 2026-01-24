@@ -9,7 +9,7 @@ from io import BytesIO
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyHMhEr0zy226CjIzHEGQJL0PUsMO3AI6EtZGUOTtDEX6DSqOKaRRrG1EE-eyVxXZES/exec"
 
-st.set_page_config(page_title="Absensi Tim KI", layout="wide")
+st.set_page_config(page_title="Absensi Tim KI Satker PPS Banten", layout="wide")
 
 # --- CUSTOM CSS (DIPERBARUI UNTUK KONTRAS TINGGI) ---
 st.markdown("""
@@ -30,7 +30,7 @@ st.markdown("""
     
     /* Judul Sangat Besar & Warna Putih */
     .hero-title {
-        font-size: 65px; /* Ukuran diperbesar */
+        font-size: 100px; /* Ukuran diperbesar */
         font-weight: 800;
         color: #ffffff !important; /* Warna Putih */
         text-align: center;
@@ -47,7 +47,7 @@ st.markdown("""
 
     /* Styling Sapaan Putih */
     .welcome-text {
-        font-size: 28px;
+        font-size: 35px;
         font-weight: 600;
         color: #ffffff !important; /* Warna Putih */
         margin-top: 10px;
@@ -90,7 +90,7 @@ bulan_indo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "A
 
 # --- SIDEBAR ---
 st.sidebar.markdown("## 🏢 Dashboard KI")
-menu = st.sidebar.selectbox("Navigasi", ["📍 Presensi", "📊 Rekap Absensi"])
+menu = st.sidebar.selectbox("Navigasi", ["📍 Absensi", "📊 Rekap Absensi"])
 st.sidebar.divider()
 st.sidebar.write(f"📅 **{waktu_now.strftime('%d %B %Y')}**")
 st.sidebar.write(f"⏰ **{waktu_now.strftime('%H:%M:%S')} WIB**")
@@ -118,7 +118,7 @@ if menu == "📍 Presensi":
 
         foto = st.camera_input("Ambil Foto Wajah")
 
-        if st.button(f"🚀 Kirim Absensi {status_absen} Sekarang"):
+        if st.button(f"Kirim Absensi {status_absen} Sekarang"):
             if foto:
                 with st.spinner("Mengirim data..."):
                     try:
@@ -166,3 +166,4 @@ elif menu == "📊 Rekap Absensi":
                 st.info("Data belum tersedia untuk bulan ini.")
         except:
             st.error("Gagal mengambil data.")
+
