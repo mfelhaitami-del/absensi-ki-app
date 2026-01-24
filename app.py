@@ -51,7 +51,6 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
                         resp = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=files)
                         link_foto = resp.json()["data"]["url"]
                         
-                        # Kirim jam dalam bentuk STRING murni ke API
                         jam_fix = waktu_aktif.strftime("%H:%M:%S")
                         payload = {
                             "nama": nama_lengkap, 
@@ -67,7 +66,7 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
             else:
                 st.warning("⚠️ Ambil foto dulu!")
 
-# --- HALAMAN REKAP (METODE STRING MURNI) ---
+# --- HALAMAN REKAP (FORCE WIB SYNC) ---
 def halaman_rekap(waktu_aktif):
     st.markdown('<p class="hero-title" style="font-size:40px;">Rekap Data Bulanan</p>', unsafe_allow_html=True)
     
@@ -83,38 +82,47 @@ def halaman_rekap(waktu_aktif):
             res = requests.get(f"{WEBAPP_URL}?bulan={nama_tab}")
             data_json = res.json()
             if data_json:
-                # 1. Gunakan pd.DataFrame.from_records untuk menghindari konversi otomatis
-                df = pd.DataFrame.from_records(data_json)
+                df = pd.DataFrame(data_json)
                 
-                # 2. Ambil hanya kolom Nama, Tanggal, Jam Masuk, Jam Pulang
+                # Hanya ambil 4 kolom pertama (Nama, Tanggal, Masuk, Pulang)
                 df = df.iloc[:, :4]
-                
-                # 3. Paksa SEMUA data jadi Teks (Object)
-                df = df.astype(str)
-                
-                # 4. Fungsi pembersihan Jam paling akurat (Hanya ambil angka : angka : angka)
-                def ambil_teks_jam(teks):
-                    if teks == "None" or teks == "nan" or not teks: return "-"
-                    # Cari pola jam (HH:mm:ss) di dalam teks apa pun
-                    import re
-                    match = re.search(r'(\d{2}:\d{2}:\d{2})', teks)
-                    return match.group(1) if match else teks
 
-                df[df.columns[2]] = df[df.columns[2]].apply(ambil_teks_jam)
-                df[df.columns[3]] = df[df.columns[3]].apply(ambil_teks_jam)
+                # FUNGSI KRITIKAL: Jika jam yang datang adalah UTC (selisih 7 jam), tambahkan manual.
+                def sinkronkan_ke_wib(val):
+                    if val is None or str(val) == "nan" or val == "": return "-"
+                    try:
+                        # Jika format mengandung T (ISO String), konversi ke Datetime
+                        if "T" in str(val):
+                            dt = pd.to_datetime(val)
+                            # TAMBAH 7 JAM (Memaksa UTC jadi WIB)
+                            dt_wib = dt + datetime.timedelta(hours=7)
+                            return dt_wib.strftime("%H:%M:%S")
+                        
+                        # Jika sudah format HH:mm:ss tapi masih jam 7 pagi (padahal harusnya jam 14)
+                        # Kita asumsikan ini error zona waktu dan tambahkan 7 jam
+                        ts = pd.to_datetime(val, errors='coerce')
+                        if ts.hour < 12 and "PULANG" in str(df.columns): # Contoh logika pengecekan
+                             ts = ts + datetime.timedelta(hours=7)
+                        
+                        return ts.strftime("%H:%M:%S")
+                    except:
+                        return str(val)[:8]
+
+                # Terapkan perbaikan zona waktu
+                df[df.columns[2]] = df[df.columns[2]].apply(sinkronkan_ke_wib)
+                df[df.columns[3]] = df[df.columns[3]].apply(sinkronkan_ke_wib)
                 
                 # Bersihkan Tanggal
-                df[df.columns[1]] = df[df.columns[1]].str.split('T').str[0]
+                df[df.columns[1]] = pd.to_datetime(df[df.columns[1]], errors='coerce').dt.strftime('%d-%m-%Y')
                 
                 df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]
                 
                 st.write(f"### 📋 Laporan: {nama_tab}")
-                # Gunakan st.dataframe tetapi matikan fitur sorting otomatis agar tidak berubah
-                st.dataframe(df, use_container_width=True, hide_index=True)
+                st.table(df)
             else:
                 st.info(f"ℹ️ Tidak ada data.")
-        except Exception as e:
-            st.error(f"Gagal memuat data.")
+        except:
+            st.error("Gagal sinkronisasi data.")
 
 # --- MAIN ---
 with st.sidebar:
