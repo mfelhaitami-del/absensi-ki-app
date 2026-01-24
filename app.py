@@ -11,7 +11,7 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwKEM1F-kthxUFjIt_qc11U-98
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# --- 2. CUSTOM CSS (MINIMALIS & PROFESIONAL) ---
+# --- 2. CUSTOM CSS (TAMPILAN MINIMALIS) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
@@ -21,6 +21,7 @@ st.markdown("""
     [data-testid="stSidebar"] { background-color: #0f172a !important; }
     [data-testid="stSidebar"] * { color: white !important; }
     
+    /* Box Jam Sidebar */
     .sidebar-time-box { 
         background-color: rgba(255,255,255,0.1); 
         padding: 15px; border-radius: 12px; text-align: center; 
@@ -33,15 +34,10 @@ st.markdown("""
         color: #ffffff; margin-top: -30px; margin-bottom: 30px;
     }
 
-    /* MENGHILANGKAN LIST/BINGKAI PUTIH PADA TABEL */
+    /* Menghilangkan bingkai putih pada tabel rekap */
     [data-testid="stDataFrame"] {
         background-color: transparent !important;
         border: none !important;
-    }
-    
-    /* Memastikan teks tabel tetap putih agar terbaca di background gelap */
-    .stDataFrame div[data-testid="stTable"] {
-        color: white !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -59,15 +55,21 @@ def jam_sidebar():
     """, unsafe_allow_html=True)
     return waktu_skrg
 
-# --- 4. NAVIGASI ---
+# --- 4. NAVIGASI SIDEBAR (SISTEM DROPDOWN) ---
 with st.sidebar:
     st.markdown("### 🏢 MENU UTAMA")
-    menu = st.radio("Pilih Menu:", ["📍 Presensi Wajah", "📊 Rekap Absensi"])
+    
+    # MENGGUNAKAN SELECTBOX SEBAGAI DROPDOWN NAVIGASI
+    menu = st.selectbox(
+        "Pilih Layanan:", 
+        ["📍 Absensi", "📊 Rekap Absensi"]
+    )
+    
     st.divider()
     waktu_aktif = jam_sidebar()
 
 # --- 5. HALAMAN 1: PRESENSI ---
-if menu == "📍 Presensi Wajah":
+if menu == "📍 Absensi":
     st.markdown('<p class="hero-title">Absensi Tim KI Satker PPS Banten</p>', unsafe_allow_html=True)
     
     status_sesi = "TUTUP"
@@ -81,7 +83,7 @@ if menu == "📍 Presensi Wajah":
         nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
         foto = st.camera_input("Ambil Foto Wajah")
         
-        if st.button(f"🚀 KIRIM DATA ABSENSI", use_container_width=True):
+        if st.button(f"KIRIM DATA ABSENSI", use_container_width=True):
             if foto:
                 with st.spinner("Proses..."):
                     try:
@@ -91,15 +93,14 @@ if menu == "📍 Presensi Wajah":
                         requests.post(WEBAPP_URL, json=payload)
                         st.success("✅ Berhasil!")
                         st.balloons()
-                    except: st.error("Error.")
+                    except: st.error("Error mengirim data.")
 
-# --- 6. HALAMAN 2: REKAP (LIST PUTIH DIHAPUS) ---
+# --- 6. HALAMAN 2: REKAP ABSENSI ---
 else:
     st.markdown('<p class="hero-title">📊 Rekap Kehadiran Bulanan</p>', unsafe_allow_html=True)
     
     bulan_indo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
     
-    # Dropdown tetap ada
     c1, c2 = st.columns(2)
     with c1:
         p_bulan = st.selectbox("Pilih Bulan", bulan_indo, index=waktu_aktif.month - 1)
@@ -116,13 +117,12 @@ else:
                 
                 st.write(f"### 📋 Laporan: {p_bulan} {p_tahun}")
                 
-                # Menggunakan st.dataframe tanpa background putih
                 st.dataframe(
                     df_tampil, 
                     use_container_width=True, 
                     height=500
                 )
             else:
-                st.info("Data tidak ditemukan.")
+                st.info("Data tidak ditemukan untuk periode ini.")
         except:
-            st.error("Gagal mengambil data.")
+            st.error("Gagal mengambil data dari server.")
