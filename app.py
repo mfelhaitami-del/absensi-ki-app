@@ -11,7 +11,7 @@ from io import BytesIO
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzxgHFaJttC3Wnrw0-4XZdPt7n24QeB-Z-pQWv4bhO9CzVDLhyIqj7-DaWLMFxO2VVL/exec"
 
-st.set_page_config(page_title="Absensi Tim KI", layout="wide")
+st.set_page_config(page_title="Absensi Tim KI Satker PPS Banten", layout="wide")
 
 st.markdown("""
     <style>
@@ -26,7 +26,7 @@ st.markdown("""
 
 # --- HALAMAN 1: PRESENSI ---
 def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
-    st.markdown('<p class="hero-title">Absensi Tim KI</p>', unsafe_allow_html=True)
+    st.markdown('<p class="hero-title">Absensi Tim KI Satker PPS Banten</p>', unsafe_allow_html=True)
     if status_absen == "TUTUP":
         st.error(f"🚫 Sesi tutup. (Sekarang: {waktu_aktif.strftime('%H:%M:%S')} WIB)")
     else:
@@ -35,7 +35,7 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
         st.info(f"📍 Sesi: **Absen {status_absen}**")
         foto = st.camera_input("Ambil foto wajah")
 
-        if st.button(f"🚀 Kirim Absensi {status_absen}"):
+        if st.button(f"Kirim Absensi {status_absen}"):
             if foto:
                 try:
                     img = Image.open(foto)
@@ -48,7 +48,7 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
                     jam_fix = waktu_aktif.strftime("%H:%M:%S")
                     payload = {"nama": nama_lengkap, "tanggal": tgl_skrg, "jam": jam_fix, "status": status_absen, "foto_link": link_foto}
                     requests.post(WEBAPP_URL, json=payload)
-                    st.success(f"🎉 Berhasil! Tercatat jam {jam_fix} WIB.")
+                    st.success(f"Berhasil! Tercatat jam {jam_fix} WIB.")
                 except:
                     st.error("Gagal mengirim.")
             else:
@@ -83,15 +83,15 @@ def halaman_rekap(waktu_aktif):
 # --- SIDEBAR & NAVIGASI ---
 with st.sidebar:
     st.markdown("## 🏢 Dashboard KI")
-    menu = st.selectbox("Navigasi", ["📍 Presensi", "📊 Rekap Absensi"])
+    menu = st.selectbox("Navigasi", ["📍 Absensi", "📊 Rekap Absensi"])
     st.divider()
     waktu_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
     st.markdown(f'<div class="sidebar-time-box">📅 <b>{waktu_skrg.strftime("%d %B %Y")}</b><br>⏰ <b>{waktu_skrg.strftime("%H:%M:%S")} WIB</b></div>', unsafe_allow_html=True)
 
-if menu == "📍 Presensi":
+if menu == "📍 Absensi":
     status_sesi = "TUTUP"
     if 6 <= waktu_skrg.hour < 12: status_sesi = "MASUK"
-    elif 13 <= waktu_skrg.hour < 18: status_sesi = "PULANG"
+    elif 13 <= waktu_skrg.hour < 22: status_sesi = "PULANG"
     halaman_presensi(waktu_skrg, status_sesi, waktu_skrg.strftime("%Y-%m-%d"))
 else:
     halaman_rekap(waktu_skrg)
