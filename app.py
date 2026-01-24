@@ -22,7 +22,6 @@ st.markdown("""
     .hero-title { font-size: 60px; font-weight: 800; color: #ffffff !important; text-align: center; margin-bottom: 0px; }
     .hero-subtitle { font-size: 18px; color: #cbd5e1 !important; text-align: center; margin-bottom: 30px; }
     video { transform: scaleX(-1) !important; -webkit-transform: scaleX(-1) !important; border-radius: 20px; border: 3px solid #3b82f6; }
-    [data-testid="stCameraInput"] video { transform: scaleX(-1) !important; -webkit-transform: scaleX(-1) !important; }
     div.stButton > button { width: 100%; border-radius: 12px; height: 3.5em; background-color: #3b82f6; color: white !important; font-weight: 700; }
     .sidebar-time-box { background-color: rgba(255,255,255,0.1); padding: 12px; border-radius: 10px; margin-top: 10px; border: 1px solid rgba(255,255,255,0.2); }
     </style>
@@ -52,23 +51,23 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
                         resp = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=files)
                         link_foto = resp.json()["data"]["url"]
                         
-                        # Kirim jam tepat sesuai WIB
-                        jam_wib = waktu_aktif.strftime("%H:%M:%S")
+                        # Kirim jam tepat sesuai WIB (Waktu Sidebar)
+                        jam_fix = waktu_aktif.strftime("%H:%M:%S")
                         payload = {
                             "nama": nama_lengkap, 
                             "tanggal": tgl_skrg, 
-                            "jam": jam_wib, 
+                            "jam": jam_fix, 
                             "status": status_absen, 
                             "foto_link": link_foto
                         }
                         requests.post(WEBAPP_URL, json=payload)
-                        st.success(f"🎉 Berhasil! Tercatat jam {jam_wib} WIB.")
+                        st.success(f"🎉 Berhasil! Tercatat jam {jam_fix} WIB.")
                     except:
                         st.error("Gagal mengirim data.")
             else:
                 st.warning("⚠️ Ambil foto dulu!")
 
-# --- HALAMAN REKAP (JAM SAMA DENGAN SHEET) ---
+# --- HALAMAN REKAP (PERBAIKAN TOTAL SINKRONISASI JAM) ---
 def halaman_rekap(waktu_aktif):
     st.markdown('<p class="hero-title" style="font-size:40px;">Rekap Data Bulanan</p>', unsafe_allow_html=True)
     
@@ -84,37 +83,39 @@ def halaman_rekap(waktu_aktif):
             res = requests.get(f"{WEBAPP_URL}?bulan={nama_tab}")
             data_json = res.json()
             if data_json:
-                # Ambil data mentah tanpa konversi tanggal otomatis oleh pandas
-                df = pd.DataFrame(data_json)
+                # Load data dan paksa semua menjadi TEXT (agar tidak dihitung otomatis oleh pandas)
+                df = pd.DataFrame(data_json).astype(str)
                 
-                # Paksa semua jadi teks agar format jam di Sheet (HH:mm:ss) tidak berubah
-                df = df.astype(str)
+                # Hanya ambil 4 kolom pertama (Nama, Tanggal, Jam Masuk, Jam Pulang)
+                df = df.iloc[:, :4]
                 
-                # Hapus kolom foto (kolom ke-5 / index 4) sesuai permintaan
-                if len(df.columns) >= 5:
-                    df = df.iloc[:, :4]
+                # Membersihkan kolom Tanggal dari embel-embel jam sistem
+                df[df.columns[1]] = df[df.columns[1]].str.split('T').str[0]
                 
-                # Bersihkan sisa format ISO jika ada (misal T00:00:00Z)
-                df[df.columns[1]] = df[df.columns[1]].str.replace('T.*', '', regex=True)
+                # --- LOGIKA SINKRONISASI JAM ---
+                # Jika jam mengandung selisih 7 jam (format ISO), kita ambil hanya teks jam aslinya saja
                 for i in [2, 3]:
-                    # Ambil hanya bagian jam 00:00:00
                     df[df.columns[i]] = df[df.columns[i]].str.extract(r'(\d{2}:\d{2}:\d{2})').fillna("-")
                 
                 df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]
                 
                 st.write(f"### 📋 Laporan: {nama_tab}")
-                st.table(df) # Menggunakan st.table agar tampilan jam statis dan jelas
+                # Menggunakan st.table agar tampilan jam statis dan TIDAK BERUBAH
+                st.table(df)
             else:
                 st.info(f"ℹ️ Tidak ada data.")
         except:
-            st.error("❌ Gagal memuat data.")
+            st.error("❌ Gagal memuat data. Periksa koneksi Database Anda.")
 
-# --- MAIN ---
+# --- MAIN LOGIC ---
 with st.sidebar:
     st.markdown("## 🏢 Dashboard KI")
     menu = st.selectbox("Navigasi", ["📍 Presensi", "📊 Rekap Absensi"], key="nav_menu")
     st.divider()
+    
+    # Kunci Penentu Waktu: WIB (UTC+7)
     waktu_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
+    
     st.markdown(f"""
     <div class="sidebar-time-box">
         📅 <b>{waktu_skrg.strftime('%d %B %Y')}</b><br>
@@ -126,6 +127,7 @@ if menu == "📍 Presensi":
     status_sesi = "TUTUP"
     if 6 <= waktu_skrg.hour < 12: status_sesi = "MASUK"
     elif 13 <= waktu_skrg.hour < 18: status_sesi = "PULANG"
+    
     halaman_presensi(waktu_skrg, status_sesi, waktu_skrg.strftime("%Y-%m-%d"))
     time.sleep(1)
     st.rerun()
