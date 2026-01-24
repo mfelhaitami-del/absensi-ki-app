@@ -10,7 +10,7 @@ from io import BytesIO
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyHMhEr0zy226CjIzHEGQJL0PUsMO3AI6EtZGUOTtDEX6DSqOKaRRrG1EE-eyVxXZES/exec"
 
-st.set_page_config(page_title="Absensi Tim KI", layout="wide")
+st.set_page_config(page_title="Absensi Tim KI Satker PPS Banten", layout="wide")
 
 # --- CUSTOM CSS ---
 st.markdown("""
@@ -89,7 +89,7 @@ if menu == "📍 Absensi":
     st.markdown('<p class="hero-subtitle">Sistem Pencatatan Kehadiran Digital Real-Time</p>', unsafe_allow_html=True)
     
     if status_absen == "TUTUP":
-        st.error(f"Maaf, sesi absensi sedang ditutup. (Sekarang: {waktu_aktif.strftime('%H:%M:%S')})")
+        st.error(f"🚫 Maaf, sesi absensi sedang ditutup. (Sekarang: {waktu_aktif.strftime('%H:%M:%S')})")
     else:
         daftar_nama = ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"]
         nama_lengkap = st.selectbox("Pilih nama Anda di bawah ini:", daftar_nama)
@@ -100,7 +100,7 @@ if menu == "📍 Absensi":
         st.info(f"📍 Anda sedang melakukan sesi **Absen {status_absen}**")
         foto = st.camera_input("Ambil foto wajah untuk verifikasi")
 
-        if st.button(f"Kirim Absensi {status_absen} "):
+        if st.button(f"Kirim Absensi {status_absen}"):
             if foto:
                 with st.spinner("Mengirim data..."):
                     try:
@@ -121,4 +121,32 @@ if menu == "📍 Absensi":
                 st.warning("Ambil foto dulu!")
 
 # --- HALAMAN 2: REKAP ABSENSI ---
-elif
+elif menu == "📊 Rekap Absensi":
+    st.markdown('<p class="hero-title" style="font-size:45px;">Rekap Data Bulanan</p>', unsafe_allow_html=True)
+    bulan_indo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+    
+    c1, c2 = st.columns(2)
+    with c1: p_bulan = st.selectbox("Pilih Bulan", bulan_indo, index=waktu_aktif.month - 1)
+    with c2: p_tahun = st.selectbox("Pilih Tahun", [2025, 2026, 2027], index=1)
+    
+    if st.button("🔍 Tampilkan Data"):
+        st.cache_data.clear()
+        nama_tab = f"{p_bulan} {p_tahun}"
+        try:
+            res = requests.get(f"{WEBAPP_URL}?bulan={nama_tab}")
+            data_json = res.json()
+            if data_json:
+                df = pd.DataFrame(data_json)
+                df[df.columns[1]] = pd.to_datetime(df[df.columns[1]], errors='coerce').dt.strftime('%d-%m-%Y')
+                for i in [2, 3]: df[df.columns[i]] = pd.to_datetime(df[df.columns[i]], errors='coerce').dt.strftime('%H:%M:%S')
+                df = df.fillna("-")
+                df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang", "Link Foto"]
+                st.dataframe(df, use_container_width=True)
+            else:
+                st.info(f"Belum ada data untuk {nama_tab}.")
+        except:
+            st.error("Gagal terhubung ke database.")
+
+# --- AUTO REFRESH SETIAP 1 DETIK ---
+time.sleep(1)
+st.rerun()
