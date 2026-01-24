@@ -51,15 +51,24 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
                         files = {"image": buf.getvalue()}
                         resp = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=files)
                         link_foto = resp.json()["data"]["url"]
-                        payload = {"nama": nama_lengkap, "tanggal": tgl_skrg, "jam": waktu_aktif.strftime("%H:%M:%S"), "status": status_absen, "foto_link": link_foto}
+                        
+                        # Kirim jam tepat sesuai WIB
+                        jam_wib = waktu_aktif.strftime("%H:%M:%S")
+                        payload = {
+                            "nama": nama_lengkap, 
+                            "tanggal": tgl_skrg, 
+                            "jam": jam_wib, 
+                            "status": status_absen, 
+                            "foto_link": link_foto
+                        }
                         requests.post(WEBAPP_URL, json=payload)
-                        st.success(f"🎉 Berhasil! Data {nama_lengkap} tersimpan.")
+                        st.success(f"🎉 Berhasil! Tercatat jam {jam_wib} WIB.")
                     except:
                         st.error("Gagal mengirim data.")
             else:
                 st.warning("⚠️ Ambil foto dulu!")
 
-# --- HALAMAN REKAP (PERBAIKAN JAM & FOTO) ---
+# --- HALAMAN REKAP (JAM SAMA DENGAN SHEET) ---
 def halaman_rekap(waktu_aktif):
     st.markdown('<p class="hero-title" style="font-size:40px;">Rekap Data Bulanan</p>', unsafe_allow_html=True)
     
@@ -75,40 +84,30 @@ def halaman_rekap(waktu_aktif):
             res = requests.get(f"{WEBAPP_URL}?bulan={nama_tab}")
             data_json = res.json()
             if data_json:
-                # Load ke DataFrame
+                # Ambil data mentah tanpa konversi tanggal otomatis oleh pandas
                 df = pd.DataFrame(data_json)
                 
-                # FIX JAM: Paksa semua data menjadi string agar tidak jadi 1899-12-30
+                # Paksa semua jadi teks agar format jam di Sheet (HH:mm:ss) tidak berubah
                 df = df.astype(str)
                 
-                # Bersihkan format tanggal jika mengandung 'T00:00:00Z'
+                # Hapus kolom foto (kolom ke-5 / index 4) sesuai permintaan
+                if len(df.columns) >= 5:
+                    df = df.iloc[:, :4]
+                
+                # Bersihkan sisa format ISO jika ada (misal T00:00:00Z)
                 df[df.columns[1]] = df[df.columns[1]].str.replace('T.*', '', regex=True)
-                
-                # Bersihkan format jam jika mengandung tanggal 1899
                 for i in [2, 3]:
-                    df[df.columns[i]] = df[df.columns[i]].str.extract(r'(\d{2}:\d{2}:\d{2})')
+                    # Ambil hanya bagian jam 00:00:00
+                    df[df.columns[i]] = df[df.columns[i]].str.extract(r'(\d{2}:\d{2}:\d{2})').fillna("-")
                 
-                # Isi data kosong dengan strip
-                df = df.fillna("-").replace("nan", "-").replace("None", "-")
-                
-                # Beri nama kolom
-                df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang", "Foto"]
+                df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]
                 
                 st.write(f"### 📋 Laporan: {nama_tab}")
-                
-                # TAMPILKAN TABEL DENGAN FOTO
-                st.dataframe(
-                    df,
-                    column_config={
-                        "Foto": st.column_config.ImageColumn("Foto", width="medium")
-                    },
-                    use_container_width=True,
-                    hide_index=True
-                )
+                st.table(df) # Menggunakan st.table agar tampilan jam statis dan jelas
             else:
-                st.info(f"ℹ️ Tidak ada data untuk {nama_tab}.")
-        except Exception as e:
-            st.error(f"❌ Gagal memuat data: {e}")
+                st.info(f"ℹ️ Tidak ada data.")
+        except:
+            st.error("❌ Gagal memuat data.")
 
 # --- MAIN ---
 with st.sidebar:
