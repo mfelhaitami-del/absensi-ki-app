@@ -66,7 +66,7 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
             else:
                 st.warning("⚠️ Ambil foto dulu!")
 
-# --- HALAMAN REKAP (SINKRONISASI TOTAL) ---
+# --- HALAMAN REKAP (SINKRONISASI MANUAL UTC TO WIB) ---
 def halaman_rekap(waktu_aktif):
     st.markdown('<p class="hero-title" style="font-size:40px;">Rekap Data Bulanan</p>', unsafe_allow_html=True)
     
@@ -82,40 +82,38 @@ def halaman_rekap(waktu_aktif):
             res = requests.get(f"{WEBAPP_URL}?bulan={nama_tab}")
             data_json = res.json()
             if data_json:
-                # 1. Load data mentah tanpa konversi apapun
                 df = pd.DataFrame(data_json)
-                
-                # 2. Hapus kolom foto (index 4) agar tabel bersih
                 if len(df.columns) >= 5:
                     df = df.iloc[:, :4]
                 
-                # 3. Paksa SEMUA data menjadi string murni
-                df = df.astype(str)
-                
-                # 4. Fungsi pembersihan jam "keras"
-                def bersihkan_jam(val):
-                    if val == "None" or val == "nan" or val == "": return "-"
-                    # Jika formatnya 1899-12-30T07:00:00Z, ambil hanya 07:00:00
-                    if "T" in val:
-                        val = val.split("T")[1].split(".")[0].replace("Z", "")
-                    # Ambil 8 karakter pertama jika formatnya HH:mm:ss.SSS
-                    return val[:8]
+                # FUNGSI FIX JAM: Tambah 7 jam jika terdeteksi format UTC dari Google Script
+                def fix_waktu(val):
+                    if val is None or str(val) == "nan" or val == "": return "-"
+                    try:
+                        # Jika formatnya ISO (ada T dan Z), konversi ke WIB
+                        if "T" in str(val):
+                            dt = pd.to_datetime(val)
+                            # Tambah 7 Jam untuk konversi UTC ke WIB
+                            dt_wib = dt + datetime.timedelta(hours=7)
+                            return dt_wib.strftime("%H:%M:%S")
+                        return str(val)[:8] # Ambil HH:mm:ss jika sudah benar
+                    except:
+                        return str(val)
 
-                # Terapkan pembersihan ke kolom Jam Masuk (index 2) & Jam Pulang (index 3)
-                df[df.columns[2]] = df[df.columns[2]].apply(bersihkan_jam)
-                df[df.columns[3]] = df[df.columns[3]].apply(bersihkan_jam)
+                # Terapkan ke kolom Jam Masuk (2) dan Jam Pulang (3)
+                df[df.columns[2]] = df[df.columns[2]].apply(fix_waktu)
+                df[df.columns[3]] = df[df.columns[3]].apply(fix_waktu)
                 
                 # Bersihkan Tanggal
-                df[df.columns[1]] = df[df.columns[1]].str.split('T').str[0]
+                df[df.columns[1]] = pd.to_datetime(df[df.columns[1]], errors='coerce').dt.strftime('%d-%m-%Y')
                 
                 df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]
-                
                 st.write(f"### 📋 Laporan: {nama_tab}")
-                st.table(df) # Gunakan table agar format teks tidak berubah-ubah
+                st.table(df)
             else:
                 st.info(f"ℹ️ Tidak ada data.")
         except Exception as e:
-            st.error(f"Gagal memproses data: {e}")
+            st.error(f"Gagal memproses data.")
 
 # --- MAIN ---
 with st.sidebar:
