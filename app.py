@@ -89,7 +89,7 @@ jam_skrg_int = waktu_now.hour
 bulan_indo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
 
 # --- SIDEBAR ---
-st.sidebar.markdown("## 🏢 Dashboard KI")
+st.sidebar.markdown("## 🏢 Dashboard Absensi KI")
 menu = st.sidebar.selectbox("Navigasi", ["📍 Absensi", "📊 Rekap Absensi"])
 st.sidebar.divider()
 st.sidebar.write(f"📅 **{waktu_now.strftime('%d %B %Y')}**")
@@ -118,7 +118,7 @@ if menu == "📍 Absensi":
 
         foto = st.camera_input("Ambil Foto Wajah")
 
-        if st.button(f"Kirim Absensi {status_absen} Sekarang"):
+        if st.button(f"Kirim Absensi {status_absen}"):
             if foto:
                 with st.spinner("Mengirim data..."):
                     try:
@@ -166,4 +166,5 @@ elif menu == "📊 Rekap Absensi":
                 st.info("Data belum tersedia untuk bulan ini.")
         except:
             st.error("Gagal mengambil data.")
+
 
