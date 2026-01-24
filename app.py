@@ -3,7 +3,7 @@ import pandas as pd
 import datetime
 import requests
 import time
-from PIL import Image, ImageOps
+from PIL import Image
 from io import BytesIO
 
 # --- KONFIGURASI ---
@@ -31,7 +31,7 @@ st.markdown("""
     .hero-subtitle { font-size: 18px; color: #cbd5e1 !important; text-align: center; margin-bottom: 30px; }
     .welcome-text { font-size: 28px; font-weight: 600; color: #ffffff !important; margin-bottom: 10px; }
     
-    /* FIX NON-MIRROR CAMERA: Anda ke kanan, layar ikut ke kanan */
+    /* FIX NON-MIRROR CAMERA: Gerakan searah (Ke kanan ikut ke kanan) */
     video { 
         transform: scaleX(-1) !important; 
         -webkit-transform: scaleX(-1) !important; 
@@ -71,12 +71,12 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
             "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", 
             "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"
         ]
-        nama_lengkap = st.selectbox("Pilih nama Anda:", daftar_nama, key="p_nama")
+        nama_lengkap = st.selectbox("Pilih nama Anda di bawah ini:", daftar_nama, key="p_nama")
         
         st.markdown(f'<p class="welcome-text">Halo, {nama_lengkap}! 👋</p>', unsafe_allow_html=True)
-        st.info(f"📍 Sesi: **Absen {status_absen}**")
+        st.info(f"📍 Sesi Aktif: **Absen {status_absen}**")
         
-        # Input Kamera (Tampilan Visual Non-Mirror via CSS)
+        # Kamera (Non-Mirror via CSS)
         foto = st.camera_input("Ambil foto wajah untuk verifikasi", key="p_cam")
 
         if st.button(f"🚀 Kirim Absensi {status_absen} Sekarang", key="p_btn"):
@@ -84,12 +84,8 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
                 with st.spinner("Sedang memproses data..."):
                     try:
                         img = Image.open(foto)
-                        # Hasil foto asli biasanya sudah real, jadi tidak perlu ImageOps.mirror lagi
-                        # jika ingin hasil yang disimpan sama dengan visual yang sudah di-fix CSS.
-                        img_final = img 
-                        
                         buf = BytesIO()
-                        img_final.save(buf, format="JPEG")
+                        img.save(buf, format="JPEG")
                         
                         # 1. Upload ke ImgBB
                         files = {"image": buf.getvalue()}
@@ -111,7 +107,7 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
             else:
                 st.warning("⚠️ Ambil foto terlebih dahulu!")
 
-# --- FUNGSI HALAMAN REKAP ---
+# --- FUNGSI HALAMAN REKAP DENGAN FOTO ---
 def halaman_rekap(waktu_aktif):
     st.markdown('<p class="hero-title" style="font-size:40px;">Rekap Data Bulanan</p>', unsafe_allow_html=True)
     st.markdown('<p class="hero-subtitle">Laporan Kehadiran Berdasarkan Database</p>', unsafe_allow_html=True)
@@ -130,21 +126,37 @@ def halaman_rekap(waktu_aktif):
             data_json = res.json()
             if data_json:
                 df = pd.DataFrame(data_json)
-                # Rapikan format tanggal & jam
+                
+                # Pembersihan format tanggal & jam
                 df[df.columns[1]] = pd.to_datetime(df[df.columns[1]], errors='coerce').dt.strftime('%d-%m-%Y')
                 for i in [2, 3]:
                     df[df.columns[i]] = pd.to_datetime(df[df.columns[i]], errors='coerce').dt.strftime('%H:%M:%S')
+                
                 df = df.fillna("-")
-                df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang", "Link Foto"]
+                # Beri nama kolom yang sesuai (Kolom terakhir akan jadi ImageColumn)
+                df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang", "Foto"]
                 
                 st.write(f"### 📋 Laporan: {nama_tab}")
-                st.dataframe(df, use_container_width=True)
+                
+                # TAMPILAN TABEL DENGAN FOTO
+                st.dataframe(
+                    df,
+                    column_config={
+                        "Foto": st.column_config.ImageColumn(
+                            "Verifikasi Wajah", 
+                            help="Foto saat absen",
+                            width="medium"
+                        )
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
             else:
                 st.info(f"ℹ️ Belum ada data untuk bulan {nama_tab}.")
         except:
             st.error("❌ Gagal terhubung ke database.")
 
-# --- LOGIKA UTAMA (MAIN) ---
+# --- MAIN LOGIKA ---
 with st.sidebar:
     st.markdown("## 🏢 Dashboard KI")
     menu = st.selectbox("Navigasi", ["📍 Presensi", "📊 Rekap Absensi"], key="nav_menu")
@@ -153,7 +165,7 @@ with st.sidebar:
     # Ambil waktu WIB
     waktu_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
     
-    # Tampilan Waktu 2 Baris di Sidebar
+    # Jam Berjalan 2 Baris di Sidebar
     st.markdown(f"""
     <div class="sidebar-time-box">
         📅 <b>{waktu_skrg.strftime('%d %B %Y')}</b><br>
@@ -161,16 +173,17 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-# Variabel Sesi
+# Tentukan Status Sesi
+jam_cek = waktu_skrg.hour
 tgl_cek = waktu_skrg.strftime("%Y-%m-%d")
 status_sesi = "TUTUP"
-if 6 <= waktu_skrg.hour < 12: status_sesi = "MASUK"
-elif 13 <= waktu_skrg.hour < 18: status_sesi = "PULANG"
+if 6 <= jam_cek < 12: status_sesi = "MASUK"
+elif 13 <= jam_cek < 18: status_sesi = "PULANG"
 
 # Routing Menu
 if menu == "📍 Presensi":
     halaman_presensi(waktu_skrg, status_sesi, tgl_cek)
-    # Auto-refresh jam hanya aktif di menu Presensi
+    # Auto-refresh hanya aktif di menu Presensi agar jam berdetak
     time.sleep(1)
     st.rerun()
 else:
