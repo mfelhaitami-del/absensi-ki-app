@@ -19,9 +19,8 @@ st.markdown("""
     html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
     [data-testid="stSidebar"] { background-color: #1e293b !important; }
     [data-testid="stSidebar"] * { color: white !important; }
-    .hero-title { font-size: 60px; font-weight: 800; color: #ffffff !important; text-align: center; text-shadow: 2px 2px 8px rgba(0,0,0,0.5); margin-bottom: 0px; }
+    .hero-title { font-size: 60px; font-weight: 800; color: #ffffff !important; text-align: center; margin-bottom: 0px; }
     .hero-subtitle { font-size: 18px; color: #cbd5e1 !important; text-align: center; margin-bottom: 30px; }
-    .welcome-text { font-size: 28px; font-weight: 600; color: #ffffff !important; margin-bottom: 10px; }
     video { transform: scaleX(-1) !important; -webkit-transform: scaleX(-1) !important; border-radius: 20px; border: 3px solid #3b82f6; }
     [data-testid="stCameraInput"] video { transform: scaleX(-1) !important; -webkit-transform: scaleX(-1) !important; }
     div.stButton > button { width: 100%; border-radius: 12px; height: 3.5em; background-color: #3b82f6; color: white !important; font-weight: 700; }
@@ -39,7 +38,6 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
     else:
         daftar_nama = ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"]
         nama_lengkap = st.selectbox("Pilih nama Anda:", daftar_nama, key="p_nama")
-        st.markdown(f'<p class="welcome-text">Halo, {nama_lengkap}! 👋</p>', unsafe_allow_html=True)
         st.info(f"📍 Sesi: **Absen {status_absen}**")
         foto = st.camera_input("Ambil foto wajah", key="p_cam")
 
@@ -55,14 +53,13 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
                         link_foto = resp.json()["data"]["url"]
                         payload = {"nama": nama_lengkap, "tanggal": tgl_skrg, "jam": waktu_aktif.strftime("%H:%M:%S"), "status": status_absen, "foto_link": link_foto}
                         requests.post(WEBAPP_URL, json=payload)
-                        st.success(f"🎉 Berhasil! Data {nama_lengkap} sudah tersimpan.")
-                        st.balloons()
+                        st.success(f"🎉 Berhasil! Data {nama_lengkap} tersimpan.")
                     except:
                         st.error("Gagal mengirim data.")
             else:
                 st.warning("⚠️ Ambil foto dulu!")
 
-# --- HALAMAN REKAP DENGAN FOTO ---
+# --- HALAMAN REKAP (PERBAIKAN JAM & FOTO) ---
 def halaman_rekap(waktu_aktif):
     st.markdown('<p class="hero-title" style="font-size:40px;">Rekap Data Bulanan</p>', unsafe_allow_html=True)
     
@@ -78,41 +75,42 @@ def halaman_rekap(waktu_aktif):
             res = requests.get(f"{WEBAPP_URL}?bulan={nama_tab}")
             data_json = res.json()
             if data_json:
+                # Load ke DataFrame
                 df = pd.DataFrame(data_json)
                 
-                # 1. Format Tanggal & Jam
-                df[df.columns[1]] = pd.to_datetime(df[df.columns[1]], errors='coerce').dt.strftime('%d-%m-%Y')
+                # FIX JAM: Paksa semua data menjadi string agar tidak jadi 1899-12-30
+                df = df.astype(str)
+                
+                # Bersihkan format tanggal jika mengandung 'T00:00:00Z'
+                df[df.columns[1]] = df[df.columns[1]].str.replace('T.*', '', regex=True)
+                
+                # Bersihkan format jam jika mengandung tanggal 1899
                 for i in [2, 3]:
-                    df[df.columns[i]] = pd.to_datetime(df[df.columns[i]], errors='coerce').dt.strftime('%H:%M:%S')
+                    df[df.columns[i]] = df[df.columns[i]].str.extract(r'(\d{2}:\d{2}:\d{2})')
                 
-                df = df.fillna("-")
+                # Isi data kosong dengan strip
+                df = df.fillna("-").replace("nan", "-").replace("None", "-")
                 
-                # 2. BERI NAMA KOLOM - Harus tepat
+                # Beri nama kolom
                 df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang", "Foto"]
-                
-                # 3. FIX: Pastikan kolom foto berisi link string bersih
-                df['Foto'] = df['Foto'].astype(str)
                 
                 st.write(f"### 📋 Laporan: {nama_tab}")
                 
-                # 4. TAMPILKAN TABEL
+                # TAMPILKAN TABEL DENGAN FOTO
                 st.dataframe(
                     df,
                     column_config={
-                        "Foto": st.column_config.ImageColumn(
-                            "Foto", 
-                            width="medium"
-                        )
+                        "Foto": st.column_config.ImageColumn("Foto", width="medium")
                     },
                     use_container_width=True,
                     hide_index=True
                 )
             else:
                 st.info(f"ℹ️ Tidak ada data untuk {nama_tab}.")
-        except:
-            st.error("❌ Gagal memuat data.")
+        except Exception as e:
+            st.error(f"❌ Gagal memuat data: {e}")
 
-# --- LOGIKA UTAMA ---
+# --- MAIN ---
 with st.sidebar:
     st.markdown("## 🏢 Dashboard KI")
     menu = st.selectbox("Navigasi", ["📍 Presensi", "📊 Rekap Absensi"], key="nav_menu")
