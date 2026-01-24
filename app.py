@@ -41,11 +41,11 @@ def halaman_presensi(waktu_aktif, status_absen, tgl_skrg):
         nama_lengkap = st.selectbox("Pilih nama Anda:", daftar_nama, key="p_nama")
         st.markdown(f'<p class="welcome-text">Halo, {nama_lengkap}! 👋</p>', unsafe_allow_html=True)
         st.info(f"📍 Sesi: **Absen {status_absen}**")
-        foto = st.camera_input("Ambil foto wajah untuk verifikasi", key="p_cam")
+        foto = st.camera_input("Ambil foto wajah", key="p_cam")
 
         if st.button(f"🚀 Kirim Absensi {status_absen}", key="p_btn"):
             if foto:
-                with st.spinner("Sedang memproses data..."):
+                with st.spinner("Mengirim data..."):
                     try:
                         img = Image.open(foto)
                         buf = BytesIO()
@@ -80,26 +80,27 @@ def halaman_rekap(waktu_aktif):
             if data_json:
                 df = pd.DataFrame(data_json)
                 
-                # Format Tanggal
+                # 1. Format Tanggal & Jam
                 df[df.columns[1]] = pd.to_datetime(df[df.columns[1]], errors='coerce').dt.strftime('%d-%m-%Y')
-                # Format Jam Masuk & Pulang
                 for i in [2, 3]:
                     df[df.columns[i]] = pd.to_datetime(df[df.columns[i]], errors='coerce').dt.strftime('%H:%M:%S')
                 
                 df = df.fillna("-")
                 
-                # SET NAMA KOLOM (Pastikan kolom terakhir adalah link foto dari Spreadsheet)
+                # 2. BERI NAMA KOLOM - Harus tepat
                 df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang", "Foto"]
+                
+                # 3. FIX: Pastikan kolom foto berisi link string bersih
+                df['Foto'] = df['Foto'].astype(str)
                 
                 st.write(f"### 📋 Laporan: {nama_tab}")
                 
-                # KONFIGURASI TABEL AGAR FOTO MUNCUL
+                # 4. TAMPILKAN TABEL
                 st.dataframe(
                     df,
                     column_config={
                         "Foto": st.column_config.ImageColumn(
                             "Foto", 
-                            help="Foto verifikasi absen",
                             width="medium"
                         )
                     },
@@ -111,7 +112,7 @@ def halaman_rekap(waktu_aktif):
         except:
             st.error("❌ Gagal memuat data.")
 
-# --- MAIN ---
+# --- LOGIKA UTAMA ---
 with st.sidebar:
     st.markdown("## 🏢 Dashboard KI")
     menu = st.selectbox("Navigasi", ["📍 Presensi", "📊 Rekap Absensi"], key="nav_menu")
