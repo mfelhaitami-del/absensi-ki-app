@@ -5,13 +5,13 @@ import requests
 from PIL import Image
 from io import BytesIO
 
-# --- 1. KONFIGURASI (PASTIKAN DIISI) ---
+# --- 1. KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwKEM1F-kthxUFjIt_qc11U-98NEPLqD4g7nyl7TbHUA7H3QLSjchYC8U8bxSOxtuxM/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# --- 2. CUSTOM CSS (WARNA KONTRAS & TAMPILAN BERSIH) ---
+# --- 2. CUSTOM CSS (MINIMALIS & PROFESIONAL) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
@@ -21,7 +21,6 @@ st.markdown("""
     [data-testid="stSidebar"] { background-color: #0f172a !important; }
     [data-testid="stSidebar"] * { color: white !important; }
     
-    /* Box Jam Sidebar */
     .sidebar-time-box { 
         background-color: rgba(255,255,255,0.1); 
         padding: 15px; border-radius: 12px; text-align: center; 
@@ -34,20 +33,22 @@ st.markdown("""
         color: #ffffff; margin-top: -30px; margin-bottom: 30px;
     }
 
-    /* Styling Tabel Rekap agar Kontras */
+    /* MENGHILANGKAN LIST/BINGKAI PUTIH PADA TABEL */
     [data-testid="stDataFrame"] {
-        background-color: #f8fafc;
-        padding: 5px;
-        border-radius: 10px;
-        border: 1px solid #e2e8f0;
+        background-color: transparent !important;
+        border: none !important;
+    }
+    
+    /* Memastikan teks tabel tetap putih agar terbaca di background gelap */
+    .stDataFrame div[data-testid="stTable"] {
+        color: white !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. FUNGSI JAM REAL-TIME (WIB) ---
+# --- 3. FUNGSI JAM REAL-TIME ---
 @st.fragment(run_every="1s")
 def jam_sidebar():
-    # Menghitung WIB (UTC+7)
     waktu_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
     st.markdown(f"""
     <div class="sidebar-time-box">
@@ -58,7 +59,7 @@ def jam_sidebar():
     """, unsafe_allow_html=True)
     return waktu_skrg
 
-# --- 4. NAVIGASI SIDEBAR ---
+# --- 4. NAVIGASI ---
 with st.sidebar:
     st.markdown("### 🏢 MENU UTAMA")
     menu = st.radio("Pilih Menu:", ["📍 Presensi Wajah", "📊 Rekap Absensi"])
@@ -69,50 +70,36 @@ with st.sidebar:
 if menu == "📍 Presensi Wajah":
     st.markdown('<p class="hero-title">Absensi Tim KI Satker PPS Banten</p>', unsafe_allow_html=True)
     
-    # Penentuan Sesi Absen
     status_sesi = "TUTUP"
     if 6 <= waktu_aktif.hour < 12: status_sesi = "MASUK"
     elif 13 <= waktu_aktif.hour < 23: status_sesi = "PULANG"
     
     if status_sesi == "TUTUP":
-        st.error(f"🚫 Sesi Absensi Tutup. (Sekarang: {waktu_aktif.strftime('%H:%M:%S')} WIB)")
+        st.error(f"🚫 Sesi Absensi Tutup.")
     else:
-        st.info(f"📍 Sesi Sekarang: **Absen {status_sesi}**")
+        st.info(f"📍 Sesi: **Absen {status_sesi}**")
         nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
         foto = st.camera_input("Ambil Foto Wajah")
         
         if st.button(f"🚀 KIRIM DATA ABSENSI", use_container_width=True):
             if foto:
-                with st.spinner("Mengupload foto & menyinkronkan data..."):
+                with st.spinner("Proses..."):
                     try:
-                        # 1. Upload ke ImgBB
-                        res_img = requests.post(
-                            f"https://api.imgbb.com/1/upload?key={API_IMGBB}", 
-                            files={"image": foto.getvalue()}
-                        ).json()
+                        res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": foto.getvalue()}).json()
                         link_foto = res_img["data"]["url"]
-                        
-                        # 2. Kirim ke Google Sheets
-                        payload = {
-                            "nama": nama, "tanggal": waktu_aktif.strftime("%Y-%m-%d"),
-                            "jam": waktu_aktif.strftime("%H:%M:%S"), "status": status_sesi, 
-                            "foto_link": link_foto
-                        }
+                        payload = {"nama": nama, "tanggal": waktu_aktif.strftime("%Y-%m-%d"), "jam": waktu_aktif.strftime("%H:%M:%S"), "status": status_sesi, "foto_link": link_foto}
                         requests.post(WEBAPP_URL, json=payload)
-                        st.success(f"✅ Berhasil! Absen {status_sesi} tercatat.")
+                        st.success("✅ Berhasil!")
                         st.balloons()
-                    except:
-                        st.error("Gagal mengirim data. Cek koneksi atau URL API.")
-            else:
-                st.warning("⚠️ Silakan ambil foto wajah terlebih dahulu!")
+                    except: st.error("Error.")
 
-# --- 6. HALAMAN 2: REKAP (FULL SIZE & DOWNLOADABLE) ---
+# --- 6. HALAMAN 2: REKAP (LIST PUTIH DIHAPUS) ---
 else:
     st.markdown('<p class="hero-title">📊 Rekap Kehadiran Bulanan</p>', unsafe_allow_html=True)
     
     bulan_indo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
     
-    # Kontrol Filter
+    # Dropdown tetap ada
     c1, c2 = st.columns(2)
     with c1:
         p_bulan = st.selectbox("Pilih Bulan", bulan_indo, index=waktu_aktif.month - 1)
@@ -124,24 +111,18 @@ else:
             res = requests.get(f"{WEBAPP_URL}?bulan={p_bulan} {p_tahun}").json()
             if res:
                 df = pd.DataFrame(res)
-                
-                # Hanya menampilkan kolom data utama
                 df_tampil = df[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]]
-                
-                # Mengatur Nomor Urut mulai dari 1
                 df_tampil.index = range(1, len(df_tampil) + 1)
                 
                 st.write(f"### 📋 Laporan: {p_bulan} {p_tahun}")
                 
-                # TAMPILAN FULL SIZE DENGAN FITUR DOWNLOAD
+                # Menggunakan st.dataframe tanpa background putih
                 st.dataframe(
                     df_tampil, 
-                    use_container_width=True, # Tabel Full Size
-                    height=500                # Tinggi area scroll
+                    use_container_width=True, 
+                    height=500
                 )
-                
-                st.caption("📥 **Informasi:** Klik ikon unduh di pojok kanan atas tabel untuk mendownload file CSV.")
             else:
-                st.info(f"Belum ada data absensi untuk bulan {p_bulan} {p_tahun}.")
+                st.info("Data tidak ditemukan.")
         except:
-            st.error("Gagal memuat data dari Spreadsheet.")
+            st.error("Gagal mengambil data.")
