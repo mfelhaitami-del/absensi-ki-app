@@ -11,7 +11,7 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyHMhEr0zy226CjIzHEGQJL0PU
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# --- CUSTOM CSS (MEMPERCANTIK UI & RESPONSIVITAS HP) ---
+# --- CUSTOM CSS (DIPERBARUI UNTUK KONTRAS TINGGI) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
@@ -20,32 +20,43 @@ st.markdown("""
         font-family: 'Poppins', sans-serif;
     }
     
-    [data-testid="stSidebar"] { background-color: #f8f9fa; }
+    /* Memperbaiki Sidebar agar Teks Terlihat (Background Gelap, Teks Putih) */
+    [data-testid="stSidebar"] {
+        background-color: #1e293b !important;
+    }
+    [data-testid="stSidebar"] * {
+        color: white !important;
+    }
     
-    /* Judul Besar & Estetik */
+    /* Judul Sangat Besar & Warna Putih */
     .hero-title {
-        font-size: 50px;
-        font-weight: 700;
-        background: linear-gradient(90deg, #1E3A8A, #3B82F6);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        font-size: 65px; /* Ukuran diperbesar */
+        font-weight: 800;
+        color: #ffffff !important; /* Warna Putih */
         text-align: center;
-        margin-bottom: 5px;
+        margin-bottom: 0px;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
     }
     
     .hero-subtitle {
-        font-size: 18px;
-        color: #64748b;
+        font-size: 20px;
+        color: #e2e8f0 !important; /* Abu-abu sangat terang */
         text-align: center;
         margin-bottom: 30px;
     }
 
-    /* Styling Sapaan */
+    /* Styling Sapaan Putih */
     .welcome-text {
-        font-size: 24px;
+        font-size: 28px;
         font-weight: 600;
-        color: #1e293b;
+        color: #ffffff !important; /* Warna Putih */
+        margin-top: 10px;
         margin-bottom: 20px;
+    }
+
+    /* Mengatur warna label input agar putih */
+    label {
+        color: white !important;
     }
 
     /* Mematikan Mirror Kamera */
@@ -53,23 +64,20 @@ st.markdown("""
         -webkit-transform: scaleX(1) !important; 
         transform: scaleX(1) !important; 
         border-radius: 15px;
-        border: 3px solid #e2e8f0;
+        border: 2px solid #3b82f6;
     }
 
-    /* Styling Tombol agar mencolok */
+    /* Tombol Biru Terang agar Standout */
     div.stButton > button {
         width: 100%;
         border-radius: 12px;
-        height: 3em;
-        background-color: #1E3A8A;
-        color: white;
-        font-weight: 600;
+        height: 3.5em;
+        background-color: #3b82f6;
+        color: white !important;
+        font-weight: 700;
+        font-size: 18px;
         border: none;
-        transition: 0.3s;
-    }
-    div.stButton > button:hover {
-        background-color: #3B82F6;
-        color: white;
+        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -81,7 +89,7 @@ jam_skrg_int = waktu_now.hour
 bulan_indo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
 
 # --- SIDEBAR ---
-st.sidebar.markdown("### 🏢 Dashboard KI")
+st.sidebar.markdown("## 🏢 Dashboard KI")
 menu = st.sidebar.selectbox("Navigasi", ["📍 Presensi", "📊 Rekap Absensi"])
 st.sidebar.divider()
 st.sidebar.write(f"📅 **{waktu_now.strftime('%d %B %Y')}**")
@@ -100,19 +108,16 @@ if menu == "📍 Presensi":
     if status_absen == "TUTUP":
         st.error("🚫 Maaf, sesi absensi saat ini sedang ditutup.")
     else:
-        # Pilihan Nama
         daftar_nama = ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"]
         
-        # Sapaan Dinamis
+        # Form Input
         nama = st.selectbox("Siapa yang hadir hari ini?", daftar_nama)
         st.markdown(f'<p class="welcome-text">Halo, {nama.split()[0]}! 👋</p>', unsafe_allow_html=True)
         
         st.info(f"📍 Anda sedang melakukan absensi **{status_absen}**")
 
-        # Tampilan Kamera (Full Width agar bagus di HP)
         foto = st.camera_input("Ambil Foto Wajah")
 
-        # Tombol dipindah ke bawah foto agar di HP urutannya: Nama -> Kamera -> Tombol
         if st.button(f"🚀 Kirim Absensi {status_absen} Sekarang"):
             if foto:
                 with st.spinner("Mengirim data..."):
@@ -140,8 +145,8 @@ if menu == "📍 Presensi":
 
 # --- HALAMAN REKAP ---
 elif menu == "📊 Rekap Absensi":
-    st.markdown('<p class="hero-title" style="font-size:35px;">Rekap Data Bulanan</p>', unsafe_allow_html=True)
-    
+    st.markdown('<p class="hero-title" style="font-size:45px;">Rekap Data Bulanan</p>', unsafe_allow_html=True)
+    # Filter dan Tabel akan mengikuti tema otomatis Streamlit
     c1, c2 = st.columns(2)
     with c1: p_bulan = st.selectbox("Bulan", bulan_indo, index=waktu_now.month - 1)
     with c2: p_tahun = st.selectbox("Tahun", [2025, 2026, 2027], index=1)
