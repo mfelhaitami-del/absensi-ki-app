@@ -10,7 +10,7 @@ from io import BytesIO
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyHMhEr0zy226CjIzHEGQJL0PUsMO3AI6EtZGUOTtDEX6DSqOKaRRrG1EE-eyVxXZES/exec"
 
-st.set_page_config(page_title="Absensi Tim KI", layout="wide")
+st.set_page_config(page_title="Absensi Tim KI Satker PPS Banten", layout="wide")
 
 # --- CUSTOM CSS ---
 st.markdown("""
@@ -71,7 +71,7 @@ st.markdown("""
 def update_sidebar_info():
     with st.sidebar:
         st.markdown("## 🏢 Dashboard KI")
-        menu_nav = st.selectbox("Navigasi", ["📍 Presensi", "📊 Rekap Absensi"])
+        menu_nav = st.selectbox("Navigasi", ["📍 Absensi", "📊 Rekap Absensi"])
         st.divider()
         
         # Placeholder untuk Jam dan Tanggal
@@ -100,7 +100,7 @@ if 6 <= jam_int < 12: status_absen = "MASUK"
 elif 13 <= jam_int < 18: status_absen = "PULANG"
 
 # --- HALAMAN PRESENSI ---
-if menu == "📍 Presensi":
+if menu == "📍 Absensi":
     st.markdown('<p class="hero-title">Absensi Tim KI</p>', unsafe_allow_html=True)
     st.markdown('<p class="hero-subtitle">Sistem Pencatatan Kehadiran Digital Real-Time</p>', unsafe_allow_html=True)
     
@@ -114,7 +114,7 @@ if menu == "📍 Presensi":
 
         foto = st.camera_input("Ambil foto wajah untuk verifikasi")
 
-        if st.button(f"🚀 Kirim Absensi {status_absen} Sekarang"):
+        if st.button(f"Kirim Absensi {status_absen} Sekarang"):
             if foto:
                 with st.spinner("Sedang mengirim data..."):
                     try:
@@ -127,7 +127,7 @@ if menu == "📍 Presensi":
                         link_foto = resp.json()["data"]["url"]
                         payload = {"nama": nama, "tanggal": tgl_skrg, "jam": waktu_aktif.strftime("%H:%M:%S"), "status": status_absen, "foto_link": link_foto}
                         requests.post(WEBAPP_URL, json=payload)
-                        st.success(f"🎉 Berhasil! Terima kasih {nama.split()[0]}, data sudah masuk.")
+                        st.success(f"Berhasil! Terima kasih {nama.split()[0]}, datamu sudah berhasil masuk.")
                     except:
                         st.error("Gagal mengirim data. Periksa koneksi atau URL Script Anda.")
             else:
@@ -164,3 +164,4 @@ elif menu == "📊 Rekap Absensi":
 # --- AUTO REFRESH SETIAP 1 DETIK ---
 time.sleep(1)
 st.rerun()
+
