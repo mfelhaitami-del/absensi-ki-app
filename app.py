@@ -71,7 +71,7 @@ st.markdown("""
 def update_sidebar_info():
     with st.sidebar:
         st.markdown("## 🏢 Dashboard KI")
-        menu_nav = st.selectbox("Navigasi", ["📍 Absensi", "📊 Rekap Absensi"])
+        menu_nav = st.selectbox("Navigasi", ["📍 Presensi", "📊 Rekap Absensi"])
         st.divider()
         
         # Placeholder untuk Jam dan Tanggal
@@ -95,26 +95,26 @@ menu, waktu_aktif = update_sidebar_info()
 # Logika Sesi
 tgl_skrg = waktu_aktif.strftime("%Y-%m-%d")
 jam_int = waktu_aktif.hour
-status_absen = "Tutup"
-if 6 <= jam_int < 12: status_absen = "Masuk"
-elif 13 <= jam_int < 18: status_absen = "Pulang"
+status_absen = "TUTUP"
+if 6 <= jam_int < 12: status_absen = "MASUK"
+elif 13 <= jam_int < 18: status_absen = "PULANG"
 
 # --- HALAMAN PRESENSI ---
-if menu == "📍 Absensi":
+if menu == "📍 Presensi":
     st.markdown('<p class="hero-title">Absensi Tim KI</p>', unsafe_allow_html=True)
     st.markdown('<p class="hero-subtitle">Sistem Pencatatan Kehadiran Digital Real-Time</p>', unsafe_allow_html=True)
     
     if status_absen == "TUTUP":
-        st.error(f"Maaf, sesi absensi sedang ditutup. (Sekarang: {waktu_aktif.strftime('%H:%M:%S')})")
+        st.error(f"🚫 Maaf, sesi absensi sedang ditutup. (Sekarang: {waktu_aktif.strftime('%H:%M:%S')})")
     else:
         daftar_nama = ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"]
         nama = st.selectbox("Pilih nama Anda di bawah ini:", daftar_nama)
         st.markdown(f'<p class="welcome-text">Halo, {nama.split()[0]}! 👋</p>', unsafe_allow_html=True)
-        st.info(f"Anda sedang melakukan sesi **Absen {status_absen}**")
+        st.info(f"📍 Anda sedang melakukan sesi **Absen {status_absen}**")
 
         foto = st.camera_input("Ambil foto wajah untuk verifikasi")
 
-        if st.button(f"Kirim Absensi {status_absen} Sekarang"):
+        if st.button(f"🚀 Kirim Absensi {status_absen} Sekarang"):
             if foto:
                 with st.spinner("Sedang mengirim data..."):
                     try:
@@ -127,7 +127,7 @@ if menu == "📍 Absensi":
                         link_foto = resp.json()["data"]["url"]
                         payload = {"nama": nama, "tanggal": tgl_skrg, "jam": waktu_aktif.strftime("%H:%M:%S"), "status": status_absen, "foto_link": link_foto}
                         requests.post(WEBAPP_URL, json=payload)
-                        st.success(f"Berhasil! Terima kasih {nama.split()[0]}, data sudah masuk.")
+                        st.success(f"🎉 Berhasil! Terima kasih {nama.split()[0]}, data sudah masuk.")
                     except:
                         st.error("Gagal mengirim data. Periksa koneksi atau URL Script Anda.")
             else:
@@ -155,4 +155,12 @@ elif menu == "📊 Rekap Absensi":
                 for i in [2, 3]: df[df.columns[i]] = pd.to_datetime(df[df.columns[i]], errors='coerce').dt.strftime('%H:%M:%S')
                 df = df.fillna("-")
                 df.columns = ["Nama", "Tanggal", "Jam Masuk", "Jam Pulang", "Link Foto"]
-                st.dataframe(df, use_
+                st.dataframe(df, use_container_width=True)
+            else:
+                st.info(f"Belum ada data untuk {nama_tab}.")
+        except:
+            st.error("Gagal terhubung ke database.")
+
+# --- AUTO REFRESH SETIAP 1 DETIK ---
+time.sleep(1)
+st.rerun()
