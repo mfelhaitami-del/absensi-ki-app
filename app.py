@@ -24,7 +24,7 @@ st.markdown(f"""
     /* SET BACKGROUND IMAGE */
     .stApp {{
         background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), 
-                    url("https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQusYbXRoH4H-RtWyg9lGVfA-wpziYNcRClFQ&s");
+                    url("https://upload.wikimedia.org/wikipedia/commons/a/a7/Logo_PU_%28RGB%29.jpg");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
