@@ -92,7 +92,6 @@ if menu == "📍 Absensi":
                         payload = {"nama": nama, "tanggal": waktu_aktif.strftime("%Y-%m-%d"), "jam": waktu_aktif.strftime("%H:%M:%S"), "status": status_sesi, "foto_link": link_foto}
                         requests.post(WEBAPP_URL, json=payload)
                         st.success("✅ Berhasil!")
-                        st.balloons()
                     except: st.error("Error mengirim data.")
 
 # --- 6. HALAMAN 2: REKAP ABSENSI ---
