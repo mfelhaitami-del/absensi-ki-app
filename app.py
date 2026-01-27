@@ -11,34 +11,59 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwKEM1F-kthxUFjIt_qc11U-98
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# --- 2. CUSTOM CSS (TAMPILAN MINIMALIS) ---
-st.markdown("""
+# --- 2. CUSTOM CSS (DENGAN BACKGROUND GAMBAR PILIHAN) ---
+st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
-    html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
     
-    /* Sidebar Styling */
-    [data-testid="stSidebar"] { background-color: #0f172a !important; }
-    [data-testid="stSidebar"] * { color: white !important; }
+    /* Font Global */
+    html, body, [class*="css"] {{ 
+        font-family: 'Poppins', sans-serif; 
+    }}
+
+    /* SET BACKGROUND IMAGE */
+    .stApp {{
+        background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), 
+                    url("https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQusYbXRoH4H-RtWyg9lGVfA-wpziYNcRClFQ&s");
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }}
+    
+    /* Sidebar Styling tetap gelap agar kontras */
+    [data-testid="stSidebar"] {{ 
+        background-color: rgba(15, 23, 42, 0.9) !important; 
+        backdrop-filter: blur(10px);
+    }}
+    [data-testid="stSidebar"] * {{ color: white !important; }}
     
     /* Box Jam Sidebar */
-    .sidebar-time-box { 
+    .sidebar-time-box {{ 
         background-color: rgba(255,255,255,0.1); 
         padding: 15px; border-radius: 12px; text-align: center; 
         border: 1px solid #3b82f6; margin-bottom: 20px;
-    }
+    }}
 
     /* Judul Halaman */
-    .hero-title { 
-        font-size: 32px; font-weight: 800; text-align: center; 
+    .hero-title {{ 
+        font-size: 36px; font-weight: 800; text-align: center; 
         color: #ffffff; margin-top: -30px; margin-bottom: 30px;
-    }
+        text-shadow: 2px 4px 8px rgba(0,0,0,0.8);
+    }}
+
+    /* Container Form & Tabel agar melayang (Glassmorphism) */
+    [data-testid="stVerticalBlock"] > div {{
+        background-color: rgba(0, 0, 0, 0.4);
+        padding: 20px;
+        border-radius: 15px;
+        color: white;
+    }}
 
     /* Menghilangkan bingkai putih pada tabel rekap */
-    [data-testid="stDataFrame"] {
-        background-color: transparent !important;
+    [data-testid="stDataFrame"] {{
+        background-color: rgba(255, 255, 255, 0.1) !important;
         border: none !important;
-    }
+    }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -59,7 +84,6 @@ def jam_sidebar():
 with st.sidebar:
     st.markdown("### 🏢 MENU UTAMA")
     
-    # MENGGUNAKAN SELECTBOX SEBAGAI DROPDOWN NAVIGASI
     menu = st.selectbox(
         "Pilih Layanan:", 
         ["📍 Absensi", "📊 Rekap Absensi"]
@@ -87,12 +111,13 @@ if menu == "📍 Absensi":
             if foto:
                 with st.spinner("Proses..."):
                     try:
-                        res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": foto.getvalue()}).json()
+                        res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={{"image": foto.getvalue()}}).json()
                         link_foto = res_img["data"]["url"]
                         payload = {"nama": nama, "tanggal": waktu_aktif.strftime("%Y-%m-%d"), "jam": waktu_aktif.strftime("%H:%M:%S"), "status": status_sesi, "foto_link": link_foto}
                         requests.post(WEBAPP_URL, json=payload)
                         st.success("✅ Berhasil!")
-                    except: st.error("Error mengirim data.")
+                    except: 
+                        st.error("Error mengirim data.")
 
 # --- 6. HALAMAN 2: REKAP ABSENSI ---
 else:
@@ -108,13 +133,13 @@ else:
     
     if st.button("🔍 Tampilkan Rekap Data", use_container_width=True):
         try:
-            res = requests.get(f"{WEBAPP_URL}?bulan={p_bulan} {p_tahun}").json()
+            res = requests.get(f"{WEBAPP_URL}?bulan={{p_bulan}} {{p_tahun}}").json()
             if res:
                 df = pd.DataFrame(res)
                 df_tampil = df[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]]
                 df_tampil.index = range(1, len(df_tampil) + 1)
                 
-                st.write(f"### 📋 Laporan: {p_bulan} {p_tahun}")
+                st.write(f"### 📋 Laporan: {{p_bulan}} {{p_tahun}}")
                 
                 st.dataframe(
                     df_tampil, 
