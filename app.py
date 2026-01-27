@@ -11,59 +11,48 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwKEM1F-kthxUFjIt_qc11U-98
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# --- 2. CUSTOM CSS (DENGAN BACKGROUND GAMBAR PILIHAN) ---
-st.markdown(f"""
+# --- 2. CUSTOM CSS (FIXED BACKGROUND) ---
+# Menggunakan st.markdown biasa (tanpa f-string) untuk menghindari error kurung kurawal
+st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
     
-    /* Font Global */
-    html, body, [class*="css"] {{ 
+    html, body, [class*="css"] { 
         font-family: 'Poppins', sans-serif; 
-    }}
+    }
 
     /* SET BACKGROUND IMAGE */
-    .stApp {{
+    .stApp {
         background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), 
                     url("https://upload.wikimedia.org/wikipedia/commons/a/a7/Logo_PU_%28RGB%29.jpg");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
-    }}
+    }
     
-    /* Sidebar Styling tetap gelap agar kontras */
-    [data-testid="stSidebar"] {{ 
+    [data-testid="stSidebar"] { 
         background-color: rgba(15, 23, 42, 0.9) !important; 
         backdrop-filter: blur(10px);
-    }}
-    [data-testid="stSidebar"] * {{ color: white !important; }}
+    }
+    [data-testid="stSidebar"] * { color: white !important; }
     
-    /* Box Jam Sidebar */
-    .sidebar-time-box {{ 
+    .sidebar-time-box { 
         background-color: rgba(255,255,255,0.1); 
         padding: 15px; border-radius: 12px; text-align: center; 
         border: 1px solid #3b82f6; margin-bottom: 20px;
-    }}
+    }
 
-    /* Judul Halaman */
-    .hero-title {{ 
+    .hero-title { 
         font-size: 36px; font-weight: 800; text-align: center; 
         color: #ffffff; margin-top: -30px; margin-bottom: 30px;
         text-shadow: 2px 4px 8px rgba(0,0,0,0.8);
-    }}
-
-    /* Container Form & Tabel agar melayang (Glassmorphism) */
-    [data-testid="stVerticalBlock"] > div {{
-        background-color: rgba(0, 0, 0, 0.4);
-        padding: 20px;
-        border-radius: 15px;
-        color: white;
-    }}
+    }
 
     /* Menghilangkan bingkai putih pada tabel rekap */
-    [data-testid="stDataFrame"] {{
+    [data-testid="stDataFrame"] {
         background-color: rgba(255, 255, 255, 0.1) !important;
         border: none !important;
-    }}
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -80,15 +69,10 @@ def jam_sidebar():
     """, unsafe_allow_html=True)
     return waktu_skrg
 
-# --- 4. NAVIGASI SIDEBAR (SISTEM DROPDOWN) ---
+# --- 4. NAVIGASI SIDEBAR ---
 with st.sidebar:
     st.markdown("### 🏢 MENU UTAMA")
-    
-    menu = st.selectbox(
-        "Pilih Layanan:", 
-        ["📍 Absensi", "📊 Rekap Absensi"]
-    )
-    
+    menu = st.selectbox("Pilih Layanan:", ["📍 Absensi", "📊 Rekap Absensi"])
     st.divider()
     waktu_aktif = jam_sidebar()
 
@@ -107,17 +91,36 @@ if menu == "📍 Absensi":
         nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
         foto = st.camera_input("Ambil Foto Wajah")
         
-        if st.button(f"KIRIM DATA ABSENSI", use_container_width=True):
+        if st.button("KIRIM DATA ABSENSI", use_container_width=True):
             if foto:
-                with st.spinner("Proses..."):
+                with st.spinner("Proses mengirim..."):
                     try:
-                        res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={{"image": foto.getvalue()}}).json()
+                        # Upload ke ImgBB
+                        files = {"image": foto.getvalue()}
+                        res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=files).json()
                         link_foto = res_img["data"]["url"]
-                        payload = {"nama": nama, "tanggal": waktu_aktif.strftime("%Y-%m-%d"), "jam": waktu_aktif.strftime("%H:%M:%S"), "status": status_sesi, "foto_link": link_foto}
-                        requests.post(WEBAPP_URL, json=payload)
-                        st.success("✅ Berhasil!")
-                    except: 
-                        st.error("Error mengirim data.")
+                        
+                        # Payload Data
+                        payload = {
+                            "nama": nama, 
+                            "tanggal": waktu_aktif.strftime("%Y-%m-%d"), 
+                            "jam": waktu_aktif.strftime("%H:%M:%S"), 
+                            "status": status_sesi, 
+                            "foto_link": link_foto
+                        }
+                        
+                        # Kirim ke Apps Script
+                        response = requests.post(WEBAPP_URL, json=payload)
+                        
+                        if response.status_code == 200:
+                            st.success("✅ Berhasil Mengirim Absen!")
+                        else:
+                            st.error(f"Gagal koneksi ke server (Status: {response.status_code})")
+                            
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+            else:
+                st.warning("⚠️ Ambil foto dulu!")
 
 # --- 6. HALAMAN 2: REKAP ABSENSI ---
 else:
@@ -133,19 +136,16 @@ else:
     
     if st.button("🔍 Tampilkan Rekap Data", use_container_width=True):
         try:
-            res = requests.get(f"{WEBAPP_URL}?bulan={{p_bulan}} {{p_tahun}}").json()
+            # Menggunakan format string manual untuk URL
+            fetch_url = f"{WEBAPP_URL}?bulan={p_bulan} {p_tahun}"
+            res = requests.get(fetch_url).json()
             if res:
                 df = pd.DataFrame(res)
                 df_tampil = df[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]]
                 df_tampil.index = range(1, len(df_tampil) + 1)
                 
-                st.write(f"### 📋 Laporan: {{p_bulan}} {{p_tahun}}")
-                
-                st.dataframe(
-                    df_tampil, 
-                    use_container_width=True, 
-                    height=500
-                )
+                st.write(f"### 📋 Laporan: {p_bulan} {p_tahun}")
+                st.dataframe(df_tampil, use_container_width=True, height=500)
             else:
                 st.info("Data tidak ditemukan untuk periode ini.")
         except:
