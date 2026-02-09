@@ -7,7 +7,7 @@ from io import BytesIO
 
 # --- 1. KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycby-q43OJig9ToecMqU3h7UOHygWNlyqNdYLFrhdXs5e6GS5IFkcKL4FiPSk97cznssn/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbw1KObzLFOQyEaOJBggF1sgPqFNzrMEPOXSU1efgNchYQK3D82Y8TeoEImipxKkCDo5/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
