@@ -6,7 +6,7 @@ import requests
 # --- 1. KONFIGURASI ---
 # Pastikan API Key ImgBB dan URL Deployment Apps Script Anda sudah benar
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbw1KObzLFOQyEaOJBggF1sgPqFNzrMEPOXSU1efgNchYQK3D82Y8TeoEImipxKkCDo5/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbw3AtbN2Znxq1XJDEYHkgQqC-G8SU_7RcwptjmzzS9dXNyd5iK8d-Kk3cKaODfl_FrC/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
