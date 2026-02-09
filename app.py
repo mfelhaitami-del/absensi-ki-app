@@ -95,12 +95,12 @@ if menu == "📍 Absensi":
             if foto:
                 with st.spinner("Proses mengirim..."):
                     try:
-                        # Upload ke ImgBB
+                        # 1. Upload ke ImgBB
                         files = {"image": foto.getvalue()}
                         res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=files).json()
                         link_foto = res_img["data"]["url"]
                         
-                        # Payload Data
+                        # 2. Payload Data
                         payload = {
                             "nama": nama, 
                             "tanggal": waktu_aktif.strftime("%Y-%m-%d"), 
@@ -109,16 +109,18 @@ if menu == "📍 Absensi":
                             "foto_link": link_foto
                         }
                         
-                        # Kirim ke Apps Script
-                        response = requests.post(WEBAPP_URL, json=payload)
+                        # 3. Kirim ke Apps Script (Ditambahkan timeout dan pengecekan status)
+                        response = requests.post(WEBAPP_URL, json=payload, timeout=10)
                         
+                        # Cek apakah server memberikan respon sukses (200 OK)
                         if response.status_code == 200:
                             st.success("✅ Berhasil Mengirim Absen!")
                         else:
-                            st.error(f"Gagal koneksi ke server (Status: {response.status_code})")
+                            st.error(f"❌ Server Sheets menolak data (Error {response.status_code}).")
                             
                     except Exception as e:
-                        st.error(f"Error: {str(e)}")
+                        # Menangani error JSON decoder atau koneksi
+                        st.error(f"⚠️ Gangguan Koneksi: Pastikan internet stabil dan URL Apps Script benar.")
             else:
                 st.warning("⚠️ Ambil foto dulu!")
 
