@@ -153,7 +153,7 @@ else:
                         ),
                         "Nama": st.column_config.Column(
                             "Nama",
-                            width="large",  # Melebarkan kolom Nama agar seimbang
+                            width="medium",  # Melebarkan kolom Nama agar seimbang
                         ),
                         "Tanggal": st.column_config.Column(width="medium"),
                         "Jam Masuk": st.column_config.Column(width="medium"),
