@@ -138,8 +138,28 @@ else:
             res = requests.get(f"{WEBAPP_URL}?bulan={b} {t}", timeout=25).json()
             if res:
                 df = pd.DataFrame(res)
+                # Membuat nomor urut mulai dari 1
                 df.insert(0, 'No', range(1, 1 + len(df)))
-                st.dataframe(df[['No', 'Nama', 'Tanggal', 'Jam Masuk', 'Jam Pulang']], hide_index=True, use_container_width=True)
+                
+                # --- PENGATURAN LEBAR KOLOM ---
+                st.dataframe(
+                    df[['No', 'Nama', 'Tanggal', 'Jam Masuk', 'Jam Pulang']], 
+                    hide_index=True, 
+                    use_container_width=True,
+                    column_config={
+                        "No": st.column_config.Column(
+                            "No",
+                            width="small",  # Mengecilkan ukuran kolom No
+                        ),
+                        "Nama": st.column_config.Column(
+                            "Nama",
+                            width="large",  # Melebarkan kolom Nama agar seimbang
+                        ),
+                        "Tanggal": st.column_config.Column(width="medium"),
+                        "Jam Masuk": st.column_config.Column(width="medium"),
+                        "Jam Pulang": st.column_config.Column(width="medium"),
+                    }
+                )
             else:
                 st.info(f"Data absensi untuk periode {b} {t} belum tersedia.")
         except:
