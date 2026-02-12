@@ -10,8 +10,7 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbw3AtbN2Znxq1XJDEYHkgQqC-G
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# --- 2. CUSTOM CSS (BACKGROUND & GLASSMORPHISM) ---
-# Menggunakan CSS murni untuk menghindari bentrok kurung kurawal f-string
+# --- 2. CUSTOM CSS (FIX MIRROR, BG, & GLASSMORPHISM) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
@@ -20,9 +19,14 @@ st.markdown("""
         font-family: 'Poppins', sans-serif; 
     }
 
+    /* FIX CAMERA MIRROR: Membalikkan preview kamera agar tidak terbalik */
+    [data-testid="stCameraInput"] video {
+        transform: scaleX(-1);
+    }
+
     /* BACKGROUND GAMBAR UTAMA */
     .stApp {
-        background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), 
+        background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), 
                     url("https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Logo_PU_%28RGB%29.jpg/960px-Logo_PU_%28RGB%29.jpg");
         background-size: cover;
         background-position: center;
@@ -50,17 +54,15 @@ st.markdown("""
         text-shadow: 2px 4px 8px rgba(0,0,0,0.8);
     }
 
-    /* Styling Tabel Rekap (Minimalis & Transparan) */
+    /* Styling Tabel Rekap Tanpa List Putih */
     [data-testid="stDataFrame"] {
-        background-color: rgba(255, 255, 255, 0.05) !important;
-        border: none !important;
-        border-radius: 10px;
+        background-color: transparent !important;
     }
     
-    /* Menghilangkan padding berlebih */
-    .block-container {
-        padding-top: 3rem;
-        padding-bottom: 1rem;
+    .stDataFrame div[data-testid="stTable"] {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border-radius: 10px;
+        border: none !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -68,7 +70,6 @@ st.markdown("""
 # --- 3. FUNGSI JAM REAL-TIME (WIB) ---
 @st.fragment(run_every="1s")
 def jam_sidebar():
-    # Menghitung WIB (UTC+7)
     waktu_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
     st.markdown(f"""
     <div class="sidebar-time-box">
@@ -93,7 +94,6 @@ with st.sidebar:
 if menu == "📍 Absensi":
     st.markdown('<p class="hero-title">Absensi Tim KI Satker PPS Banten</p>', unsafe_allow_html=True)
     
-    # Logika Sesi Otomatis
     status_sesi = "TUTUP"
     if 6 <= waktu_aktif.hour < 12: status_sesi = "MASUK"
     elif 12 <= waktu_aktif.hour < 23: status_sesi = "PULANG"
@@ -111,7 +111,7 @@ if menu == "📍 Absensi":
         
         if st.button("KIRIM DATA ABSENSI", use_container_width=True):
             if foto:
-                with st.spinner("Mengupload foto & menyinkronkan data..."):
+                with st.spinner("Sedang memproses data..."):
                     try:
                         # 1. Upload ke ImgBB
                         files = {"image": foto.getvalue()}
@@ -128,26 +128,23 @@ if menu == "📍 Absensi":
                         }
                         
                         # 3. Kirim ke Google Apps Script
-                        # Gunakan timeout agar tidak menunggu terlalu lama jika koneksi drop
-                        response = requests.post(WEBAPP_URL, json=payload, timeout=15)
+                        response = requests.post(WEBAPP_URL, json=payload, timeout=20)
                         
                         if response.status_code == 200:
                             st.success(f"✅ Berhasil! Absen {status_sesi} Anda telah tercatat.")
                         else:
-                            st.error(f"Gagal mengirim (Status: {response.status_code}). Periksa Deployment Apps Script.")
+                            st.error(f"Gagal mengirim (Status: {response.status_code}).")
                             
                     except Exception as e:
-                        st.error(f"⚠️ Kesalahan Koneksi: Pastikan URL Apps Script benar dan internet stabil.")
+                        st.error(f"⚠️ Kesalahan Koneksi: Pastikan internet stabil.")
             else:
                 st.warning("⚠️ Silakan ambil foto wajah terlebih dahulu!")
 
-# --- 6. HALAMAN 2: REKAP ABSENSI (FULL SIZE & DOWNLOADABLE) ---
+# --- 6. HALAMAN 2: REKAP ABSENSI ---
 else:
     st.markdown('<p class="hero-title">📊 Rekap Kehadiran Bulanan</p>', unsafe_allow_html=True)
-    
     bulan_indo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
     
-    # Baris Filter
     c1, c2 = st.columns(2)
     with c1:
         p_bulan = st.selectbox("Pilih Bulan", bulan_indo, index=waktu_aktif.month - 1)
@@ -156,27 +153,17 @@ else:
     
     if st.button("🔍 Tampilkan Rekap Data", use_container_width=True):
         try:
-            # Mengambil data menggunakan parameter URL
             fetch_url = f"{WEBAPP_URL}?bulan={p_bulan} {p_tahun}"
-            res = requests.get(fetch_url, timeout=15).json()
+            res = requests.get(fetch_url, timeout=20).json()
             
             if res:
                 df = pd.DataFrame(res)
-                # Filter hanya kolom yang diperlukan
                 df_tampil = df[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]]
-                # Set nomor urut mulai dari 1
                 df_tampil.index = range(1, len(df_tampil) + 1)
                 
-                st.write(f"### 📋 Laporan Periode: {p_bulan} {p_tahun}")
-                
-                # Tabel Full Size & Bisa Download
-                st.dataframe(
-                    df_tampil, 
-                    use_container_width=True, 
-                    height=500
-                )
-                st.caption("📥 **Info:** Klik ikon di pojok kanan atas tabel untuk mendownload data.")
+                st.write(f"### 📋 Periode: {p_bulan} {p_tahun}")
+                st.dataframe(df_tampil, use_container_width=True, height=500)
             else:
                 st.info(f"ℹ️ Belum ada data absensi untuk bulan {p_bulan} {p_tahun}.")
         except Exception as e:
-            st.error("❌ Gagal memuat data. Periksa apakah nama sheet di Google Sheets sudah benar (Contoh: Februari 2026).")
+            st.error("❌ Gagal memuat data rekap.")
