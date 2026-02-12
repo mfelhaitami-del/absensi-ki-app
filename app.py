@@ -6,40 +6,38 @@ from PIL import Image, ImageDraw
 import io
 import numpy as np
 import time
-from streamlit_js_eval import get_geolocation
 
 # --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-# GANTI DENGAN URL DEPLOYMENT GOOGLE APPS SCRIPT ANDA
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzxuuaCq-zU6aT7Nv3RFeo5fMf6QaJyewP5AlFPmr_OYN6DnuYicGHxR6yVJ9txuMnZ/exec"
+# GANTI URL DI BAWAH INI DENGAN URL WEB APP ANDA SENDIRI
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbz8mdMXBGsHqbgsYr9zceGOl2u3TAlj4A4ayZM0f2ewjNm9Z0G9gE1LtOgrY3QJhFYJ/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# CSS: Background & Kamera Anti-Mirror
+# CSS: Styling & Background
 st.markdown("""
     <style>
-    [data-testid="stCameraInput"] video, [data-testid="stCameraInput"] img { transform: scaleX(-1); }
+    [data-testid="stCameraInput"] video { transform: scaleX(-1); }
     .stApp {
         background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), 
         url("https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Logo_PU_%28RGB%29.jpg/960px-Logo_PU_%28RGB%29.jpg");
         background-size: cover; background-attachment: fixed;
     }
-    .sidebar-box { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #3b82f6; }
+    .sidebar-box { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #3b82f6; color: white; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNGSI WATERMARK ---
-def process_watermark(foto, nama, lat, lon, w_skrg):
+# Fungsi Watermark
+def process_watermark(foto, nama, w_skrg):
     img = Image.open(foto).convert("RGB")
-    # Anti-mirror
-    img = Image.fromarray(np.flip(np.array(img), axis=1))
-    
+    img = Image.fromarray(np.flip(np.array(img), axis=1)) # Fix Mirroring
     draw = ImageDraw.Draw(img)
-    timestamp = w_skrg.strftime('%d/%m/%Y %H:%M:%S')
-    txt = f"Nama: {nama}\nWaktu: {timestamp}\nLokasi: {lat}, {lon}"
     
-    # Tambah Shadow hitam agar teks putih terbaca
-    pos = (20, img.height - 90)
+    # Text info
+    txt = f"NAMA: {nama}\nWAKTU: {w_skrg.strftime('%d/%m/%Y %H:%M:%S')}\nVERIFIKASI: TIM KI"
+    pos = (20, img.height - 80)
+    
+    # Tambah bayangan teks
     draw.multiline_text((pos[0]+1, pos[1]+1), txt, fill=(0, 0, 0))
     draw.multiline_text(pos, txt, fill=(255, 255, 255))
     
@@ -47,101 +45,71 @@ def process_watermark(foto, nama, lat, lon, w_skrg):
     img.save(buf, format="JPEG")
     return buf.getvalue()
 
-# --- FUNGSI KIRIM DATA ---
-def kirim_data(nama, status, foto_bytes, lokasi_str, w_skrg):
+# Fungsi Kirim Data
+def kirim_data(nama, status, foto_bytes, w_skrg):
     try:
+        # Upload ke ImgBB
         r_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": foto_bytes}).json()
         link = r_img["data"]["url"]
         
+        # Kirim ke Sheets
         payload = {
             "nama": nama, "tanggal": w_skrg.strftime("%Y-%m-%d"), 
             "jam": w_skrg.strftime("%H:%M:%S"), "status": status, 
-            "foto_link": link, "lokasi": lokasi_str
+            "foto_link": link
         }
         requests.post(WEBAPP_URL, json=payload, timeout=20)
         return True
     except:
         return False
 
-# --- DIALOG KONFIRMASI ---
-@st.dialog("Konfirmasi Absensi")
-def konfirmasi_dialog(nama, status, foto, lokasi_str, w_skrg):
-    st.warning("⚠️ Pastikan nama sudah benar sesuai nama anda!")
-    st.write(f"Nama: **{nama}**")
-    st.write(f"Status: **{status}**")
-    st.write(f"Lokasi: `{lokasi_str}`")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Ya, Kirim Absen", use_container_width=True, type="primary"):
-            with st.status("Sedang mengirim data...", expanded=False) as s:
-                lat, lon = lokasi_str.split(", ")
-                foto_final = process_watermark(foto, nama, lat, lon, w_skrg)
-                
-                if kirim_data(nama, status, foto_final, lokasi_str, w_skrg):
-                    s.update(label="✅ Berhasil!", state="complete")
-                    st.toast("Absensi terkirim!", icon='✅')
-                    time.sleep(2)
-                    st.rerun()
-                else:
-                    s.update(label="❌ Gagal!", state="error")
-    with col2:
-        if st.button("Batal", use_container_width=True):
-            st.rerun()
-
-# --- SIDEBAR & JAM ---
-@st.fragment(run_every="1s")
-def jam_sidebar():
-    w = datetime.datetime.now() + datetime.timedelta(hours=7)
-    st.markdown(f'''<div class="sidebar-box"><span style="color:white">{w.strftime("%d %B %Y")}</span><br>
-    <span style="font-size:24px; color:#3b82f6; font-weight:bold;">{w.strftime("%H:%M:%S")}</span><br>
-    <small style="color:white">WIB</small></div>''', unsafe_allow_html=True)
-    return w
-
+# Sidebar
 with st.sidebar:
-    st.header("🏢 MENU UTAMA")
-    menu = st.selectbox("Layanan:", ["📍 Absensi", "📊 Rekap Absensi"])
+    st.header("🏢 MENU")
+    menu = st.selectbox("Pilih Layanan:", ["📍 Absensi", "📊 Rekap"])
     st.divider()
-    w_skrg = jam_sidebar()
+    w_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
+    st.markdown(f'''<div class="sidebar-box"><b>{w_skrg.strftime("%d %B %Y")}</b><br>
+    <span style="font-size:22px; color:#3b82f6;">{w_skrg.strftime("%H:%M:%S")} WIB</span></div>''', unsafe_allow_html=True)
 
-# --- HALAMAN UTAMA ---
+# Halaman Absensi
 if menu == "📍 Absensi":
-    # FUNGSI GPS Browser
-    loc = get_geolocation()
-    
     st.markdown("<h2 style='text-align:center; color:white;'>Absensi Tim KI Satker PPS Banten</h2>", unsafe_allow_html=True)
-    status_sesi = "MASUK" if 6 <= w_skrg.hour < 12 else "PULANG" if 12 <= w_skrg.hour < 23 else "TUTUP"
     
-    if status_sesi == "TUTUP":
-        st.error("🚫 Sesi Absensi sedang ditutup.")
+    sesi = "MASUK" if 6 <= w_skrg.hour < 12 else "PULANG" if 12 <= w_skrg.hour < 23 else "TUTUP"
+    
+    if sesi == "TUTUP":
+        st.error("🚫 Absensi sudah ditutup hari ini.")
     else:
-        nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
-        foto = st.camera_input("Ambil Foto Wajah")
+        nama = st.selectbox("Nama Karyawan:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
+        foto = st.camera_input("Ambil Foto Presensi")
         
-        if st.button("KIRIM DATA ABSENSI", use_container_width=True):
-            if not loc:
-                st.error("📍 Akses Lokasi diperlukan! Mohon izinkan lokasi di browser Anda.")
-            elif foto:
-                lat = loc['coords']['latitude']
-                lon = loc['coords']['longitude']
-                lokasi_str = f"{lat}, {lon}"
-                konfirmasi_dialog(nama, status_sesi, foto, lokasi_str, w_skrg)
+        if st.button("KIRIM ABSENSI SEKARANG", use_container_width=True):
+            if foto:
+                with st.spinner("Sedang memproses..."):
+                    foto_final = process_watermark(foto, nama, w_skrg)
+                    if kirim_data(nama, sesi, foto_final, w_skrg):
+                        st.success(f"✅ Berhasil! Selamat bekerja/pulang, {nama}.")
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error("❌ Gagal mengirim data. Cek koneksi Anda.")
             else:
-                st.warning("📸 Foto belum diambil!")
+                st.warning("📸 Foto harus diambil terlebih dahulu!")
+
+# Halaman Rekap
 else:
-    st.markdown("<h2 style='text-align:center; color:white;'>📊 Rekap Absensi Bulanan</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center; color:white;'>📊 Rekap Absensi</h2>", unsafe_allow_html=True)
     list_b = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
-    b = st.selectbox("Pilih Bulan:", list_b, index=w_skrg.month - 1)
+    b = st.selectbox("Bulan:", list_b, index=w_skrg.month - 1)
     
-    if st.button("🔍 Tampilkan Data Rekap", use_container_width=True):
+    if st.button("🔍 Tampilkan Data", use_container_width=True):
         try:
-            res = requests.get(f"{WEBAPP_URL}?bulan={b} {w_skrg.year}", timeout=25).json()
+            res = requests.get(f"{WEBAPP_URL}?bulan={b} {w_skrg.year}", timeout=20).json()
             if res:
                 df = pd.DataFrame(res)
-                df.insert(0, 'No', range(1, 1 + len(df)))
-                st.dataframe(df[['No', 'Nama', 'Tanggal', 'Jam Masuk', 'Jam Pulang']], hide_index=True, use_container_width=True, 
-                             column_config={"No": st.column_config.Column(width=40), "Nama": st.column_config.Column(width="large")})
+                st.dataframe(df, use_container_width=True, hide_index=True)
             else:
-                st.info("Data belum tersedia.")
+                st.info("Data bulan ini belum ada.")
         except:
-            st.error("Gagal terhubung ke database.")
+            st.error("Gagal mengambil data dari database.")
