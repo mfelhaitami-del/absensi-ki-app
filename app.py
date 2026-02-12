@@ -2,20 +2,19 @@ import streamlit as st
 import pandas as pd
 import datetime
 import requests
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import io
 import numpy as np
 import time
+from streamlit_js_eval import get_geolocation
 
 # --- KONFIGURASI ---
-# Ganti dengan API Key ImgBB Anda jika berbeda
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-# Pastikan URL ini adalah URL /exec dari deployment Apps Script terbaru Anda
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbx3tEh9mSuiK4viX-GZZzEPoonb1Oi_j9fVrdNqlHXE5NjEccoBlar0ej5jodm6xbbv/exec"
+# Update URL ini setelah Deploy ulang Apps Script
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxaqFbgP7Jq3TKWW8jsNV08cDNA9PeUPYEiezFo2vTrE_g36ovzzijgp3eRJkDuusdh/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# --- CSS: BACKGROUND & KAMERA ANTI-MIRROR ---
 st.markdown("""
     <style>
     [data-testid="stCameraInput"] video, [data-testid="stCameraInput"] img { transform: scaleX(-1); }
@@ -28,61 +27,68 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNGSI PROSES KIRIM DATA ---
-def kirim_ke_sheets(nama, status, foto, w_skrg):
+# --- FUNGSI PROSES WATERMARK ---
+def process_watermark(foto, nama, lat, lon, w_skrg):
+    img = Image.open(foto).convert("RGB")
+    # Anti-mirror
+    img = Image.fromarray(np.flip(np.array(img), axis=1))
+    
+    draw = ImageDraw.Draw(img)
+    # Teks watermark
+    txt = f"Nama: {nama}\nWaktu: {w_skrg.strftime('%d/%m/%Y %H:%M:%S')}\nLokasi: {lat}, {lon}"
+    
+    # Gambar teks di pojok kiri bawah
+    # Jika di server tidak ada font, PIL akan pakai default
+    draw.text((15, img.height - 80), txt, fill=(255, 255, 255))
+    
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    return buf.getvalue()
+
+# --- FUNGSI KIRIM DATA ---
+def kirim_data(nama, status, foto_bytes, lokasi_str, w_skrg):
     try:
-        # Proses Image (Anti-Mirror)
-        img = Image.open(foto).convert("RGB")
-        f_img = Image.fromarray(np.flip(np.array(img), axis=1))
-        buf = io.BytesIO()
-        f_img.save(buf, format="JPEG")
-        
         # Upload ke ImgBB
-        r_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": buf.getvalue()}).json()
+        r_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": foto_bytes}).json()
         link = r_img["data"]["url"]
         
-        # Kirim Payload ke Google Apps Script
         payload = {
-            "nama": nama, 
-            "tanggal": w_skrg.strftime("%Y-%m-%d"), 
-            "jam": w_skrg.strftime("%H:%M:%S"), 
-            "status": status, 
-            "foto_link": link
+            "nama": nama, "tanggal": w_skrg.strftime("%Y-%m-%d"), 
+            "jam": w_skrg.strftime("%H:%M:%S"), "status": status, 
+            "foto_link": link, "lokasi": lokasi_str
         }
-        response = requests.post(WEBAPP_URL, json=payload, timeout=20)
-        return response.status_code == 200
-    except Exception as e:
-        print(f"Error: {e}")
+        requests.post(WEBAPP_URL, json=payload, timeout=20)
+        return True
+    except:
         return False
 
-# --- POP-UP DIALOG KONFIRMASI ---
+# --- DIALOG KONFIRMASI ---
 @st.dialog("Konfirmasi Absensi")
-def konfirmasi_dialog(nama, status_sesi, foto, w_skrg):
+def konfirmasi_dialog(nama, status, foto, lokasi_str, w_skrg):
     st.warning("⚠️ Pastikan nama sudah benar sesuai nama anda!")
-    st.write(f"Nama Terpilih: **{nama}**")
-    st.write(f"Sesi: **{status_sesi}**")
+    st.write(f"Nama: **{nama}**")
+    st.write(f"Lokasi: `{lokasi_str}`")
     
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Ya, Sudah Benar", use_container_width=True, type="primary"):
-            # Menggunakan st.status untuk indikator progres yang jelas
-            with st.status("Sedang mengirim data absensi...", expanded=False) as s:
-                sukses = kirim_ke_sheets(nama, status_sesi, foto, w_skrg)
-                if sukses:
-                    s.update(label="✅ Absen Berhasil Terkirim!", state="complete", expanded=False)
-                    st.toast(f"Terima kasih {nama}, data sudah masuk.", icon='✅')
-                    # Jeda 3 detik agar user bisa melihat notifikasi sukses sebelum rerun
+            with st.status("Memproses absen & lokasi...", expanded=False) as s:
+                # Proses watermark di sini agar data GPS masuk ke foto
+                lat, lon = lokasi_str.split(", ")
+                foto_final = process_watermark(foto, nama, lat, lon, w_skrg)
+                
+                if kirim_data(nama, status, foto_final, lokasi_str, w_skrg):
+                    s.update(label="✅ Absen Berhasil Terkirim!", state="complete")
+                    st.toast("Data sudah masuk ke sistem.", icon='✅')
                     time.sleep(3)
                     st.rerun()
                 else:
-                    s.update(label="❌ Gagal mengirim data!", state="error")
-                    st.error("Terjadi kendala koneksi ke server. Silakan coba lagi.")
-                    
+                    s.update(label="❌ Gagal Terkirim!", state="error")
     with col2:
         if st.button("Tidak, Ganti Nama", use_container_width=True):
             st.rerun()
 
-# --- JAM REAL-TIME DI SIDEBAR ---
+# --- SIDEBAR ---
 @st.fragment(run_every="1s")
 def jam_sidebar():
     w = datetime.datetime.now() + datetime.timedelta(hours=7)
@@ -91,76 +97,51 @@ def jam_sidebar():
     <small style="color:white">WIB</small></div>''', unsafe_allow_html=True)
     return w
 
-# --- STRUKTUR SIDEBAR ---
 with st.sidebar:
     st.header("🏢 MENU UTAMA")
     menu = st.selectbox("Layanan:", ["📍 Absensi", "📊 Rekap Absensi"])
     st.divider()
     w_skrg = jam_sidebar()
 
-# --- HALAMAN 📍 ABSENSI ---
+# --- HALAMAN UTAMA ---
 if menu == "📍 Absensi":
-    st.markdown("<h2 style='text-align:center; color:white;'>Absensi Tim KI Satker PPS Banten</h2>", unsafe_allow_html=True)
+    # Ambil Geolokasi
+    loc = get_geolocation()
     
-    # Logika Jam Sesi (Masuk: 06-12, Pulang: 12-23)
+    st.markdown("<h2 style='text-align:center; color:white;'>Absensi Tim KI Satker PPS Banten</h2>", unsafe_allow_html=True)
     status_sesi = "MASUK" if 6 <= w_skrg.hour < 12 else "PULANG" if 12 <= w_skrg.hour < 23 else "TUTUP"
     
     if status_sesi == "TUTUP":
-        st.error("🚫 Sesi Absensi sedang ditutup (Aktif 06:00 - 23:00 WIB).")
+        st.error("🚫 Sesi Absensi sedang ditutup.")
     else:
-        st.info(f"Sesi Aktif saat ini: **{status_sesi}**")
-        nama = st.selectbox("Pilih Nama Anda:", [
-            "Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", 
-            "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", 
-            "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"
-        ])
-        
+        nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
         foto = st.camera_input("Ambil Foto Wajah")
         
         if st.button("KIRIM DATA ABSENSI", use_container_width=True):
-            if foto:
-                # Memanggil dialog konfirmasi pop-up
-                konfirmasi_dialog(nama, status_sesi, foto, w_skrg)
+            if not loc:
+                st.error("📍 Akses Lokasi diperlukan! Mohon izinkan lokasi di browser.")
+            elif foto:
+                lat = loc['coords']['latitude']
+                lon = loc['coords']['longitude']
+                lokasi_str = f"{lat}, {lon}"
+                konfirmasi_dialog(nama, status_sesi, foto, lokasi_str, w_skrg)
             else:
-                st.warning("📸 Silakan ambil foto terlebih dahulu!")
+                st.warning("📸 Foto wajib diambil!")
 
-# --- HALAMAN 📊 REKAP ABSENSI ---
 else:
     st.markdown("<h2 style='text-align:center; color:white;'>📊 Rekap Absensi Bulanan</h2>", unsafe_allow_html=True)
     list_b = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+    b = st.selectbox("Pilih Bulan:", list_b, index=w_skrg.month - 1)
     
-    c1, c2 = st.columns(2)
-    b = c1.selectbox("Pilih Bulan:", list_b, index=w_skrg.month - 1)
-    t = c2.selectbox("Pilih Tahun:", [2025, 2026, 2027], index=1)
-
     if st.button("🔍 Tampilkan Data Rekap", use_container_width=True):
         try:
-            res = requests.get(f"{WEBAPP_URL}?bulan={b} {t}", timeout=25).json()
+            res = requests.get(f"{WEBAPP_URL}?bulan={b} 2026", timeout=25).json()
             if res:
                 df = pd.DataFrame(res)
-                # Membuat nomor urut mulai dari 1
                 df.insert(0, 'No', range(1, 1 + len(df)))
-                
-                # --- PENGATURAN LEBAR KOLOM ---
-                st.dataframe(
-                    df[['No', 'Nama', 'Tanggal', 'Jam Masuk', 'Jam Pulang']], 
-                    hide_index=True, 
-                    use_container_width=True,
-                    column_config={
-                        "No": st.column_config.Column(
-                            "No",
-                            width="40",  # Mengecilkan ukuran kolom No
-                        ),
-                        "Nama": st.column_config.Column(
-                            "Nama",
-                            width="medium",  # Melebarkan kolom Nama agar seimbang
-                        ),
-                        "Tanggal": st.column_config.Column(width="medium"),
-                        "Jam Masuk": st.column_config.Column(width="medium"),
-                        "Jam Pulang": st.column_config.Column(width="medium"),
-                    }
-                )
+                st.dataframe(df[['No', 'Nama', 'Tanggal', 'Jam Masuk', 'Jam Pulang']], hide_index=True, use_container_width=True, 
+                             column_config={"No": st.column_config.Column(width=40), "Nama": st.column_config.Column(width="large")})
             else:
-                st.info(f"Data absensi untuk periode {b} {t} belum tersedia.")
+                st.info("Belum ada data.")
         except:
-            st.error("Gagal mengambil data dari Spreadsheet.")
+            st.error("Gagal memuat data.")
