@@ -77,7 +77,7 @@ with st.sidebar:
 if menu == "📍 Absensi":
     st.markdown('<p class="hero-title">Absensi Tim KI Satker PPS Banten</p>', unsafe_allow_html=True)
     
-    status_sesi = "TUTUP"
+    status_sesoc = "TUTUP"
     if 6 <= waktu_aktif.hour < 12: status_sesi = "MASUK"
     elif 12 <= waktu_aktif.hour < 23: status_sesi = "PULANG"
     
