@@ -86,7 +86,7 @@ if menu == "📍 Absensi":
         
         if st.button("KIRIM DATA ABSENSI", use_container_width=True):
             if foto_raw:
-                with st.spinner("Memproses sinkronisasi foto..."):
+                with st.spinner("Memproses foto..."):
                     try:
                         # 1. Buka Gambar
                         img = Image.open(foto_raw).convert("RGB")
@@ -117,8 +117,8 @@ if menu == "📍 Absensi":
                         }
                         requests.post(WEBAPP_URL, json=payload, timeout=20)
                         
-                        st.success(f"✅ Berhasil! Data & Foto sudah normal (tidak mirror).")
-                        st.balloons()
+                        st.success(f"✅ Berhasil! Data sudah terkirim.")
+                        
                     except Exception as e:
                         st.error(f"⚠️ Terjadi kesalahan: {e}")
             else:
