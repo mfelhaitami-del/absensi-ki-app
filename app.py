@@ -6,11 +6,13 @@ from PIL import Image
 import io
 import numpy as np
 
+# --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyeIN9ODJPWtnV8SKySdpOQLCjKdz8mvKwt_o9Sd16DEO1XdBOr5DgfTBBK2rn7vGfm/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxI_S9wmtQqVeI9I_Xm8yp3HmZW-SigdbFleFSqIBHkIqgOpKKNZ6WvDddfakIaWwnP/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
+# CSS untuk Background & Kamera Anti-Mirror
 st.markdown("""
     <style>
     [data-testid="stCameraInput"] video, [data-testid="stCameraInput"] img { transform: scaleX(-1); }
@@ -49,7 +51,7 @@ if menu == "📍 Absensi":
         
         if st.button("KIRIM DATA ABSENSI", use_container_width=True):
             if foto:
-                with st.spinner("Mengirim..."):
+                with st.spinner("Mengirim data..."):
                     try:
                         img = Image.open(foto).convert("RGB")
                         f_img = Image.fromarray(np.flip(np.array(img), axis=1))
@@ -60,10 +62,10 @@ if menu == "📍 Absensi":
                         payload = {"nama": nama, "tanggal": w_skrg.strftime("%Y-%m-%d"), "jam": w_skrg.strftime("%H:%M:%S"), "status": status_sesi, "foto_link": link}
                         requests.post(WEBAPP_URL, json=payload, timeout=20)
                         st.success(f"✅ Berhasil absen {status_sesi}!")
-                        
+                        st.balloons()
                     except:
-                        st.error("Gagal terhubung.")
-            else: st.warning("📸 Ambil Foto dulu!")
+                        st.error("Gagal terhubung ke server.")
+            else: st.warning("📸 Foto wajib diambil!")
 
 else:
     st.markdown("<h2 style='text-align:center; color:white;'>📊 Rekap Absensi Bulanan</h2>", unsafe_allow_html=True)
@@ -80,6 +82,6 @@ else:
                 df.insert(0, 'No', range(1, 1 + len(df)))
                 st.table(df[['No', 'Nama', 'Tanggal', 'Jam Masuk', 'Jam Pulang']])
             else:
-                st.info(f"Belum ada data.")
+                st.info(f"Belum ada data untuk periode ini.")
         except:
-            st.error("Gagal mengambil data.")
+            st.error("Terjadi kesalahan saat mengambil data.")
