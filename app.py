@@ -8,81 +8,93 @@ import numpy as np
 
 # --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-# GANTI DENGAN URL /exec HASIL NEW DEPLOYMENT ANDA
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbw1b4y97wTIZTLEiY7lSvJ2osMuHWH3k6XTnoFPwZGOMKTjBgqdocFgAS2Y0CdEaEYN/exec"
+# GANTI DENGAN URL /exec HASIL NEW DEPLOYMENT (PILIH "ANYONE")
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxgJnwWaN96KNaVR48ogKP374X0q1NzsUWmMp2THKojEfIX3AqthvyQuWVvMokuPbRD/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# CSS Background & No-Mirror Camera
+# CSS Background & Mirror Camera Fix
 st.markdown("""
     <style>
     [data-testid="stCameraInput"] video, [data-testid="stCameraInput"] img { transform: scaleX(-1); }
     .stApp {
-        background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), 
+        background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
         url("https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Logo_PU_%28RGB%29.jpg/960px-Logo_PU_%28RGB%29.jpg");
         background-size: cover; background-attachment: fixed;
     }
+    .sidebar-time { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #3b82f6; }
     </style>
 """, unsafe_allow_html=True)
 
-# Jam WIB Real-time
 @st.fragment(run_every="1s")
 def jam_sidebar():
     w = datetime.datetime.now() + datetime.timedelta(hours=7)
-    st.sidebar.markdown(f"### ⏰ {w.strftime('%H:%M:%S')} WIB")
+    st.markdown(f'''
+        <div class="sidebar-time">
+            <span style="color:white">{w.strftime("%d %B %Y")}</span><br>
+            <span style="font-size:24px; color:#3b82f6; font-weight:bold;">{w.strftime("%H:%M:%S")}</span><br>
+            <small style="color:white">WIB</small>
+        </div>
+    ''', unsafe_allow_html=True)
     return w
 
 with st.sidebar:
-    st.header("🏢 MENU")
-    menu = st.selectbox("Pilih Layanan:", ["📍 Absensi", "📊 Rekap Data"])
+    st.header("🏢 MENU UTAMA")
+    menu = st.selectbox("Layanan:", ["📍 Absensi", "📊 Rekap Absensi"])
+    st.divider()
     w_skrg = jam_sidebar()
 
+# --- HALAMAN ABSENSI ---
 if menu == "📍 Absensi":
-    st.title("📍 Absensi Tim KI")
+    st.markdown("<h2 style='text-align:center; color:white;'>Absensi Tim KI Satker PPS Banten</h2>", unsafe_allow_html=True)
     status_sesi = "MASUK" if 6 <= w_skrg.hour < 12 else "PULANG" if 12 <= w_skrg.hour < 23 else "TUTUP"
     
-    nama = st.selectbox("Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
-    foto = st.camera_input("Ambil Foto")
-    
-    if st.button("KIRIM ABSENSI", use_container_width=True):
-        if foto:
-            with st.spinner("Mengirim..."):
-                try:
-                    # Proses Gambar
-                    img = Image.open(foto).convert("RGB")
-                    f_img = Image.fromarray(np.flip(np.array(img), axis=1))
-                    buf = io.BytesIO()
-                    f_img.save(buf, format="JPEG")
-                    
-                    # Upload Foto
-                    r_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": buf.getvalue()}).json()
-                    link = r_img["data"]["url"]
-                    
-                    # Kirim Data
-                    payload = {"nama": nama, "tanggal": w_skrg.strftime("%Y-%m-%d"), "jam": w_skrg.strftime("%H:%M:%S"), "status": status_sesi, "foto_link": link}
-                    requests.post(WEBAPP_URL, json=payload)
-                    st.success(f"✅ Berhasil absen {status_sesi}!")
-                except:
-                    st.error("❌ Terjadi kesalahan koneksi.")
-        else: st.warning("📸 Foto wajib diambil!")
+    if status_sesi == "TUTUP":
+        st.error("🚫 Sesi Absensi sedang ditutup.")
+    else:
+        st.info(f"Sesi Aktif: **Absen {status_sesi}**")
+        nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
+        foto = st.camera_input("Ambil Foto Wajah")
+        
+        if st.button("KIRIM DATA ABSENSI", use_container_width=True):
+            if foto:
+                with st.spinner("Mengirim..."):
+                    try:
+                        # Anti-Mirror fisik agar di DB normal
+                        img = Image.open(foto).convert("RGB")
+                        f_img = Image.fromarray(np.flip(np.array(img), axis=1))
+                        buf = io.BytesIO()
+                        f_img.save(buf, format="JPEG")
+                        
+                        r_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": buf.getvalue()}).json()
+                        link = r_img["data"]["url"]
+                        
+                        payload = {"nama": nama, "tanggal": w_skrg.strftime("%Y-%m-%d"), "jam": w_skrg.strftime("%H:%M:%S"), "status": status_sesi, "foto_link": link}
+                        requests.post(WEBAPP_URL, json=payload, timeout=20)
+                        st.success(f"✅ Berhasil absen {status_sesi}!")
+                        st.balloons()
+                    except:
+                        st.error("❌ Gagal terhubung ke database.")
+            else: st.warning("📸 Foto dulu!")
 
+# --- HALAMAN REKAP ---
 else:
-    st.title("📊 Rekap Data Absensi")
-    # LIST BULAN INDONESIA (Penting agar sinkron dengan Nama Tab)
+    st.markdown("<h2 style='text-align:center; color:white;'>📊 Rekap Absensi Bulanan</h2>", unsafe_allow_html=True)
     list_b = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
     c1, c2 = st.columns(2)
     b = c1.selectbox("Bulan:", list_b, index=w_skrg.month - 1)
     t = c2.selectbox("Tahun:", [2025, 2026, 2027], index=1)
 
-    if st.button("🔍 Tampilkan Rekap", use_container_width=True):
+    if st.button("🔍 Tampilkan Data Rekap", use_container_width=True):
         try:
-            # Mengirim request bulan dalam bahasa Indonesia (e.g. "Februari 2026")
-            res = requests.get(f"{WEBAPP_URL}?bulan={b} {t}").json()
+            # Memanggil tab bahasa Indonesia, e.g., "Februari 2026"
+            res = requests.get(f"{WEBAPP_URL}?bulan={b} {t}", timeout=25).json()
             if res:
                 df = pd.DataFrame(res)
                 df.insert(0, 'No', range(1, 1 + len(df)))
-                st.table(df) # Gunakan st.table agar format teks murni terjaga
+                # Menampilkan kolom sesuai permintaan
+                st.table(df[['No', 'Nama', 'Tanggal', 'Jam Masuk', 'Jam Pulang']])
             else:
-                st.info(f"Belum ada data di tab '{b} {t}'.")
+                st.info(f"Tab '{b} {t}' tidak ditemukan atau kosong.")
         except:
-            st.error("Gagal mengambil data. Pastikan URL Deployment sudah benar.")
+            st.error("Gagal mengambil data. Pastikan URL baru sudah di-deploy.")
