@@ -11,14 +11,14 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbw3AtbN2Znxq1XJDEYHkgQqC-G
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# --- 2. CUSTOM CSS (FIX MIRROR PREVIEW & UI) ---
+# --- 2. CUSTOM CSS (PREVIEW MIRROR & UI) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
     
     html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
 
-    /* Agar tampilan kamera di layar terasa seperti cermin (Mirror Preview) */
+    /* CSS agar tampilan kamera di layar HP/Laptop seperti cermin */
     [data-testid="stCameraInput"] video {
         transform: scaleX(-1);
     }
@@ -49,7 +49,6 @@ st.markdown("""
         text-shadow: 2px 4px 8px rgba(0,0,0,0.8);
     }
 
-    /* Merapikan Tabel Rekap */
     [data-testid="stDataFrame"] {
         background-color: rgba(255, 255, 255, 0.05) !important;
         border-radius: 10px;
@@ -60,6 +59,7 @@ st.markdown("""
 # --- 3. FUNGSI JAM WIB ---
 @st.fragment(run_every="1s")
 def jam_sidebar():
+    # Menambah 7 jam untuk konversi ke WIB jika server menggunakan UTC
     waktu_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
     st.markdown(f"""
     <div class="sidebar-time-box">
@@ -70,7 +70,7 @@ def jam_sidebar():
     """, unsafe_allow_html=True)
     return waktu_skrg
 
-# --- 4. NAVIGASI SIDEBAR ---
+# --- 4. NAVIGASI ---
 with st.sidebar:
     st.markdown("### 🏢 MENU UTAMA")
     menu = st.selectbox("Pilih Layanan:", ["📍 Absensi", "📊 Rekap Absensi"])
@@ -86,7 +86,7 @@ if menu == "📍 Absensi":
     elif 12 <= waktu_aktif.hour < 23: status_sesi = "PULANG"
     
     if status_sesi == "TUTUP":
-        st.error(f"🚫 Sesi Absensi Tutup (Buka: 06:00 - 23:00 WIB).")
+        st.error(f"🚫 Sesi Absensi Tutup (06:00 - 23:00 WIB).")
     else:
         st.info(f"📍 Sesi Sekarang: **Absen {status_sesi}**")
         nama = st.selectbox("Pilih Nama Anda:", [
@@ -95,34 +95,32 @@ if menu == "📍 Absensi":
             "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"
         ])
         
-        foto = st.camera_input("Ambil Foto Wajah (Pastikan Terang)")
+        foto = st.camera_input("Ambil Foto Wajah")
         
         if st.button("KIRIM DATA ABSENSI", use_container_width=True):
             if foto:
-                with st.spinner("🔄 Memproses & Membalik Foto..."):
+                with st.spinner("🔄 Sedang memproses gambar (Flip Horizontal)..."):
                     try:
-                        # --- LOGIKA UN-MIRROR HASIL FOTO ---
-                        # 1. Buka foto yang baru saja diambil
+                        # --- PROSES FLIP GAMBAR AGAR HASIL TIDAK TERBALIK ---
+                        # Membuka gambar asli
                         img_raw = Image.open(foto)
                         
-                        # 2. Balik secara horizontal agar tulisan tidak terbalik
-                        img_corrected = ImageOps.mirror(img_raw)
+                        # Menggunakan transpose FLIP_LEFT_RIGHT untuk membalikkan posisi
+                        # Ini akan memastikan tulisan/background tidak mirror di hasil akhir
+                        img_corrected = img_raw.transpose(Image.FLIP_LEFT_RIGHT)
                         
-                        # 3. Konversi kembali ke bytes untuk dikirim via internet
+                        # Simpan ke byte stream
                         img_buffer = io.BytesIO()
                         img_corrected.save(img_buffer, format="JPEG", quality=90)
-                        final_image_bytes = img_buffer.getvalue()
+                        final_bytes = img_buffer.getvalue()
 
-                        # --- PROSES KIRIM ---
-                        # Upload ke ImgBB
-                        res_img = requests.post(
-                            f"https://api.imgbb.com/1/upload?key={API_IMGBB}", 
-                            files={"image": ("absensi.jpg", final_image_bytes, "image/jpeg")}
-                        ).json()
+                        # 1. Upload ke ImgBB
+                        payload_img = {"image": ("absensi.jpg", final_bytes, "image/jpeg")}
+                        res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=payload_img).json()
                         link_foto = res_img["data"]["url"]
                         
-                        # Payload ke Google Sheets
-                        payload = {
+                        # 2. Payload ke Google Sheets
+                        payload_data = {
                             "nama": nama, 
                             "tanggal": waktu_aktif.strftime("%Y-%m-%d"), 
                             "jam": waktu_aktif.strftime("%H:%M:%S"), 
@@ -130,16 +128,15 @@ if menu == "📍 Absensi":
                             "foto_link": link_foto
                         }
                         
-                        # Kirim ke Apps Script
-                        response = requests.post(WEBAPP_URL, json=payload, timeout=20)
+                        response = requests.post(WEBAPP_URL, json=payload_data, timeout=20)
                         
                         if response.status_code == 200:
-                            st.success(f"✅ Berhasil! Foto tidak terbalik & Absen {status_sesi} tercatat.")
+                            st.success(f"✅ Berhasil! Foto sudah normal (tidak mirror) dan data terkirim.")
                         else:
-                            st.error("Gagal mengirim data ke Database.")
+                            st.error("Gagal terhubung ke Database Google Sheets.")
                             
                     except Exception as e:
-                        st.error(f"⚠️ Kesalahan: {e}")
+                        st.error(f"⚠️ Kesalahan Sistem: {e}")
             else:
                 st.warning("📸 Silakan ambil foto terlebih dahulu!")
 
@@ -165,6 +162,6 @@ else:
                 df_tampil.index = range(1, len(df_tampil) + 1)
                 st.dataframe(df_tampil, use_container_width=True, height=500)
             else:
-                st.info(f"Belum ada data untuk periode {p_bulan} {p_tahun}.")
+                st.info(f"Data rekap untuk {p_bulan} {p_tahun} belum tersedia.")
         except:
-            st.error("Gagal menyambung ke database rekap.")
+            st.error("Gagal mengambil data dari Google Sheets.")
