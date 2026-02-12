@@ -112,7 +112,7 @@ if menu == "📍 Absensi":
                         requests.post(WEBAPP_URL, json=payload, timeout=20)
                         
                         st.success(f"✅ Berhasil Terkirim!")
-                        st.balloons()
+                    
                     except Exception as e:
                         st.error(f"⚠️ Terjadi kesalahan: {e}")
             else:
