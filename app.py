@@ -14,9 +14,10 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyJoDYYqRrxha8RG-ujACwPO8X
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# CSS: Styling & Jam
+# CSS: Perbaikan Tampilan & Fix Mirror Viewport
 st.markdown("""
     <style>
+    /* Membuat tampilan kamera di layar tidak mirror agar nyaman saat berpose */
     [data-testid="stCameraInput"] video { transform: scaleX(-1); border-radius: 10px; border: 2px solid #3b82f6; }
     .stApp {
         background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), 
@@ -30,7 +31,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- JALUR PINTAS GPS & JAM (Mencegah Error API) ---
+# --- JALUR PINTAS GPS & JAM (Murni JavaScript) ---
 def tools_javascript():
     return components.html("""
     <script>
@@ -47,11 +48,11 @@ def tools_javascript():
         if(elD) elD.innerText = dStr;
     }, 1000);
 
-    // Ambil GPS
+    // Memaksa permintaan GPS ke Browser
     navigator.geolocation.getCurrentPosition(
         (p) => send({lat: p.coords.latitude, lon: p.coords.longitude, ok: true}),
         (e) => send({ok: false}),
-        {enableHighAccuracy: true}
+        {enableHighAccuracy: true, timeout: 5000}
     );
     </script>
     """, height=0)
@@ -64,7 +65,7 @@ def get_alamat_lengkap(lat, lon):
 
 def proses_foto(foto, nama, lat, lon, alamat, w_skrg):
     img = Image.open(foto).convert("RGB")
-    # PERBAIKAN MIRROR: Membalikkan gambar agar posisi benar
+    # FIX MIRROR: Membalikkan gambar agar posisi teks di belakang tidak terbalik
     img = ImageOps.mirror(img)
     draw = ImageDraw.Draw(img)
     
@@ -110,15 +111,15 @@ if menu == "📍 Absensi":
         st.success(f"📍 GPS Aktif: {js_data['lat']}, {js_data['lon']}")
         gps_siap = True
     else:
-        st.warning("⚠️ LOKASI BELUM TERDETEKSI: Pastikan GPS HP aktif & klik 'Izinkan' pada browser.")
+        st.warning("⚠️ LOKASI BELUM TERDETEKSI: Klik 'Izinkan' pada notifikasi browser di atas.")
 
     if st.button("KIRIM DATA ABSENSI", type="primary", use_container_width=True):
         if not gps_siap:
-            st.error("Gagal: Lokasi belum terkunci. Tunggu sampai muncul tanda hijau.")
+            st.error("Gagal: Lokasi belum terkunci. Mohon izinkan GPS browser.")
         elif not foto:
-            st.error("Gagal: Foto belum diambil.")
+            st.error("Gagal: Foto wajah belum diambil.")
         else:
-            with st.spinner("Mengolah Lokasi Detail & Foto..."):
+            with st.spinner("Memproses data..."):
                 lat, lon = js_data['lat'], js_data['lon']
                 alamat = get_alamat_lengkap(lat, lon)
                 foto_final = proses_foto(foto, nama, lat, lon, alamat, w_skrg)
@@ -134,7 +135,7 @@ if menu == "📍 Absensi":
                     st.success(f"Berhasil! Selamat {status.lower()}, {nama}.")
                     time.sleep(2)
                     st.rerun()
-                except: st.error("Koneksi gagal, silakan coba lagi.")
+                except: st.error("Gagal mengirim ke database. Cek koneksi.")
 
 # --- HALAMAN REKAP ---
 else:
