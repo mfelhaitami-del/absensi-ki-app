@@ -14,131 +14,170 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyJoDYYqRrxha8RG-ujACwPO8X
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# CSS: Tampilan & Mirror Kamera
+# CSS: Desain Elegan & Jam Modern
 st.markdown("""
     <style>
-    [data-testid="stCameraInput"] video { transform: scaleX(-1); }
-    [data-testid="stCameraInput"] img { transform: scaleX(-1); }
+    [data-testid="stCameraInput"] video { transform: scaleX(-1); border-radius: 15px; border: 3px solid #3b82f6; }
+    [data-testid="stCameraInput"] img { transform: scaleX(-1); border-radius: 15px; }
+    
     .stApp {
-        background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), 
+        background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), 
         url("https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Logo_PU_%28RGB%29.jpg/960px-Logo_PU_%28RGB%29.jpg");
         background-size: cover; background-attachment: fixed;
     }
-    .sidebar-box { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #3b82f6; color: white; margin-bottom: 20px;}
+    
+    /* Sidebar Clock Styling */
+    .clock-container {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    .clock-time { font-size: 28px; font-weight: bold; color: #3b82f6; font-family: 'Courier New', monospace; }
+    .clock-date { font-size: 14px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNGSI ALAMAT (Tanpa Geopy) ---
-def get_detail_alamat(lat, lon):
-    try:
-        url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json"
-        response = requests.get(url, headers={'User-Agent': 'AbsensiApp/1.0'}).json()
-        return response.get('display_name', 'Alamat tidak ditemukan')
-    except:
-        return "Gagal mengambil alamat detail"
-
-# --- JS: GPS & JAM REALTIME ---
-def inject_tools():
-    components.html("""
+# --- JALUR PINTAS GPS & JAM (Auto-Prompt) ---
+def sync_tools():
+    # Komponen ini akan memaksa browser meminta lokasi begitu di-render
+    return components.html("""
+    <div id="root"></div>
     <script>
-    // 1. Ambil GPS
-    navigator.geolocation.getCurrentPosition((pos) => {
-        window.parent.postMessage({
-            type: 'streamlit:setComponentValue',
-            value: {lat: pos.coords.latitude, lon: pos.coords.longitude}
-        }, '*');
-    });
+    // 1. Force Geolocation Prompt
+    function askLocation() {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                window.parent.postMessage({
+                    type: 'streamlit:setComponentValue',
+                    value: {lat: pos.coords.latitude, lon: pos.coords.longitude, ok: true}
+                }, '*');
+            },
+            (err) => {
+                window.parent.postMessage({
+                    type: 'streamlit:setComponentValue',
+                    value: {ok: false, msg: err.message}
+                }, '*');
+            },
+            { enableHighAccuracy: true, timeout: 5000 }
+        );
+    }
+    askLocation();
 
-    // 2. Jam Berdetik di Sidebar
+    // 2. Real-time Clock for Sidebar
     setInterval(() => {
         const now = new Date();
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-        const str = now.toLocaleDateString('id-ID', options) + ' WIB';
-        const el = window.parent.document.querySelector('.sidebar-box');
-        if (el) el.innerHTML = `<b>JAM DIGITAL</b><br><span style="font-size:20px; color:#3b82f6;">${str}</span>`;
+        const tStr = now.toLocaleTimeString('id-ID', {hour12: false});
+        const dStr = now.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+        
+        const sideClock = window.parent.document.getElementById('js-clock');
+        const sideDate = window.parent.document.getElementById('js-date');
+        if(sideClock) sideClock.innerText = tStr + " WIB";
+        if(sideDate) sideDate.innerText = dStr;
     }, 1000);
     </script>
     """, height=0)
 
-# --- FUNGSI WATERMARK ---
-def apply_watermark(foto, nama, lat, lon, alamat, w_skrg):
+# --- ALAMAT API ---
+def fetch_address(lat, lon):
+    try:
+        res = requests.get(f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json", headers={'User-Agent':'PPS-Banten-App'}).json()
+        return res.get('display_name', 'Alamat Detail Tidak Tersedia')
+    except: return "Koordinat Terdeteksi (Gagal memuat teks alamat)"
+
+# --- WATERMARK ---
+def make_watermark(foto, nama, lat, lon, alamat, w_skrg):
     img = Image.open(foto).convert("RGB")
-    img = Image.fromarray(np.flip(np.array(img), axis=1)) # Fix mirror
+    img = Image.fromarray(np.flip(np.array(img), axis=1)) # Fix Mirror
     draw = ImageDraw.Draw(img)
     
-    # Bungkus teks alamat
-    limit = 45
-    alamat_wrap = "\n".join([alamat[i:i+limit] for i in range(0, len(alamat), limit)])
-    txt = f"NAMA: {nama}\nWAKTU: {w_skrg.strftime('%d/%m/%Y %H:%M:%S')}\nKOORDINAT: {lat}, {lon}\nALAMAT: {alamat_wrap}"
+    # Wrap Alamat
+    wrap_addr = "\n".join([alamat[i:i+50] for i in range(0, len(alamat), 50)])
+    txt = f"PETUGAS: {nama}\nWAKTU: {w_skrg.strftime('%d/%m/%Y %H:%M:%S')}\nPOSISI: {lat}, {lon}\nALAMAT: {wrap_addr}"
     
-    f_size = int(img.width * 0.038)
+    f_size = int(img.width * 0.035)
     try: font = ImageFont.load_default(size=f_size)
     except: font = ImageFont.load_default()
     
     pos = (30, img.height - (img.height // 3))
-    draw.multiline_text((pos[0]+2, pos[1]+2), txt, fill=(0,0,0), font=font, spacing=6)
-    draw.multiline_text(pos, txt, fill=(255,255,255), font=font, spacing=6)
+    draw.multiline_text((pos[0]+2, pos[1]+2), txt, fill=(0,0,0), font=font, spacing=5)
+    draw.multiline_text(pos, txt, fill=(255,255,255), font=font, spacing=5)
     
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
     return buf.getvalue()
 
-# --- SIDEBAR ---
+# --- APP LAYOUT ---
 with st.sidebar:
-    st.header("🏢 MENU")
-    menu = st.selectbox("Layanan:", ["📍 Absensi", "📊 Rekap Data"])
-    st.divider()
-    # Box Jam (akan diupdate oleh JS)
-    st.markdown('<div class="sidebar-box">Memuat Jam...</div>', unsafe_allow_html=True)
+    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Logo_PU_%28RGB%29.jpg/200px-Logo_PU_%28RGB%29.jpg")
+    st.markdown("""
+        <div class="clock-container">
+            <div id="js-date" class="clock-date">Memuat Tanggal...</div>
+            <div id="js-clock" class="clock-time">00:00:00 WIB</div>
+        </div>
+    """, unsafe_allow_html=True)
+    menu = st.selectbox("Menu Layanan", ["📍 Presensi Kehadiran", "📊 Laporan Bulanan"])
     w_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
 
-# --- HALAMAN UTAMA ---
-loc_val = inject_tools()
+# Load JS Tools
+data_gps = sync_tools()
 
-if menu == "📍 Absensi":
-    st.markdown("<h2 style='text-align:center; color:white;'>Presensi Tim KI</h2>", unsafe_allow_html=True)
+if menu == "📍 Presensi Kehadiran":
+    st.markdown("<h2 style='text-align:center; color:white;'>Presensi Digital Tim KI</h2>", unsafe_allow_html=True)
     
-    nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
-    foto = st.camera_input("Ambil Foto")
+    col_a, col_b = st.columns([1, 1])
+    with col_a:
+        nama = st.selectbox("Pilih Personel:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
+        foto = st.camera_input("Silakan Foto Wajah")
     
-    if st.button("KIRIM ABSENSI", type="primary", use_container_width=True):
-        if not loc_val:
-            st.warning("⚠️ LOKASI BELUM TERDETEKSI: Mohon izinkan akses GPS browser dan tunggu sejenak.")
-        elif not foto:
-            st.warning("⚠️ FOTO KOSONG: Ambil foto wajah Anda terlebih dahulu.")
+    with col_b:
+        st.info("💡 **Petunjuk:** Pastikan wajah terlihat jelas. Sistem akan otomatis menyertakan lokasi detail dan koordinat GPS pada foto Anda.")
+        if not data_gps:
+            st.warning("📍 **Menunggu GPS...** Jika tidak muncul permintaan lokasi, pastikan fitur Lokasi/GPS di HP Anda sudah aktif dan refresh halaman.")
         else:
-            with st.spinner("Sedang memproses lokasi & alamat..."):
-                lat, lon = loc_val['lat'], loc_val['lon']
-                alamat = get_detail_alamat(lat, lon)
-                foto_final = apply_watermark(foto, nama, lat, lon, alamat, w_skrg)
-                
-                # Upload
-                try:
-                    r_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": foto_final}).json()
-                    link = r_img["data"]["url"]
+            st.success("📍 **GPS Terkunci:** Lokasi Anda sudah terdeteksi.")
+        
+        if st.button("KIRIM PRESENSI", type="primary", use_container_width=True):
+            if not data_gps or not data_gps.get('ok'):
+                st.error("Gagal mengirim: Lokasi tidak ditemukan. Izinkan akses GPS browser.")
+            elif not foto:
+                st.error("Gagal mengirim: Ambil foto terlebih dahulu.")
+            else:
+                with st.spinner("Mengirim data ke pusat..."):
+                    lat, lon = data_gps['lat'], data_gps['lon']
+                    alamat = fetch_address(lat, lon)
+                    foto_f = make_watermark(foto, nama, lat, lon, alamat, w_skrg)
                     
-                    status_absen = "MASUK" if 6 <= w_skrg.hour < 12 else "PULANG"
-                    payload = {"nama": nama, "tanggal": w_skrg.strftime("%Y-%m-%d"), "jam": w_skrg.strftime("%H:%M:%S"), "status": status_absen, "foto_link": link, "lokasi": f"{lat}, {lon} | {alamat}"}
-                    requests.post(WEBAPP_URL, json=payload, timeout=20)
-                    
-                    st.success(f"✅ Berhasil Absen {status_absen}!")
-                    time.sleep(2)
-                    st.rerun()
-                except:
-                    st.error("Gagal mengirim data. Cek koneksi.")
+                    try:
+                        # Upload Foto
+                        up = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": foto_f}).json()
+                        link = up["data"]["url"]
+                        
+                        # Simpan Data
+                        status = "MASUK" if w_skrg.hour < 12 else "PULANG"
+                        payload = {"nama":nama, "tanggal":w_skrg.strftime("%Y-%m-%d"), "jam":w_skrg.strftime("%H:%M:%S"), "status":status, "foto_link":link, "lokasi":f"{lat},{lon} | {alamat}"}
+                        requests.post(WEBAPP_URL, json=payload, timeout=15)
+                        
+                        st.balloons()
+                        st.success(f"Presensi {status} Berhasil Dikirim!")
+                        time.sleep(2)
+                        st.rerun()
+                    except: st.error("Koneksi bermasalah, silakan coba lagi.")
 
 else:
-    st.markdown("<h2 style='text-align:center; color:white;'>📊 Rekap Absensi</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center; color:white;'>📊 Laporan Absensi</h2>", unsafe_allow_html=True)
     list_b = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
     c1, c2 = st.columns(2)
-    with c1: bln = st.selectbox("Bulan:", list_b, index=w_skrg.month - 1)
-    with c2: thn = st.selectbox("Tahun:", [2025, 2026, 2027], index=1)
+    with c1: bln = st.selectbox("Bulan", list_b, index=w_skrg.month - 1)
+    with c2: thn = st.selectbox("Tahun", [2025, 2026, 2027], index=1)
     
-    if st.button("Tampilkan Data", use_container_width=True):
+    if st.button("Tampilkan Rekap", use_container_width=True):
         try:
-            res = requests.get(f"{WEBAPP_URL}?bulan={bln} {thn}", timeout=20).json()
-            if res:
-                df = pd.DataFrame(res)
-                st.dataframe(df, use_container_width=True, hide_index=True)
-            else: st.info("Data tidak ditemukan.")
-        except: st.error("Gagal memuat data dari Spreadsheet.")
+            r = requests.get(f"{WEBAPP_URL}?bulan={bln} {thn}").json()
+            if r: st.table(pd.DataFrame(r))
+            else: st.warning("Data belum tersedia untuk periode ini.")
+        except: st.error("Gagal memuat database.")
