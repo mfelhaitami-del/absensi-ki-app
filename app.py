@@ -8,51 +8,85 @@ import numpy as np
 
 # --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-# TEMPEL URL BARU DI SINI
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycby9FxDmJMGJreA0grhfz6W8Fr8uY2FRpn9S8-wpilZ5faeW7ErrSYr2Y4r6ekDOwPts/exec"
+# MASUKKAN URL /exec BARU HASIL DEPLOY DI ATAS
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbx16ck15RdtJoxwwbBcPOj34GLmlaLkJLvw_qfW7wEWvnGFXcpkODFfm1jU2Lw3CfPY/exec"
 
-st.set_page_config(page_title="Absensi KI", layout="wide")
+st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# Sidebar
+# --- CSS: BACKGROUND & ANTI-MIRROR ---
+st.markdown("""
+    <style>
+    [data-testid="stCameraInput"] video, [data-testid="stCameraInput"] img { transform: scaleX(-1); }
+    .stApp {
+        background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), 
+        url("https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Logo_PU_%28RGB%29.jpg/960px-Logo_PU_%28RGB%29.jpg");
+        background-size: cover; background-attachment: fixed;
+    }
+    .sidebar-time { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #3b82f6; }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- JAM JALAN ---
+@st.fragment(run_every="1s")
+def jam_sidebar():
+    w = datetime.datetime.now() + datetime.timedelta(hours=7)
+    st.markdown(f'<div class="sidebar-time"><span style="color:white">{w.strftime("%d %B %Y")}</span><br><span style="font-size:24px; color:#3b82f6; font-weight:bold;">{w.strftime("%H:%M:%S")}</span><br><small style="color:white">WIB</small></div>', unsafe_allow_html=True)
+    return w
+
 with st.sidebar:
-    st.header("MENU")
-    menu = st.selectbox("Pilih:", ["📍 Absensi", "📊 Rekap"])
-    w_wib = datetime.datetime.now() + datetime.timedelta(hours=7)
-    st.write(f"Jam: {w_wib.strftime('%H:%M:%S')} WIB")
+    st.header("🏢 MENU UTAMA")
+    menu = st.selectbox("Layanan:", ["📍 Absensi", "📊 Rekap Absensi"])
+    st.divider()
+    w_skrg = jam_sidebar()
 
-# Logika Halaman
+# --- HALAMAN ABSENSI ---
 if menu == "📍 Absensi":
-    st.title("Absensi Tim KI")
-    status = "MASUK" if 6 <= w_wib.hour < 12 else "PULANG" if 12 <= w_wib.hour < 23 else "TUTUP"
+    st.markdown("<h2 style='text-align:center; color:white;'>Absensi Tim KI Satker PPS Banten</h2>", unsafe_allow_html=True)
+    status_sesi = "MASUK" if 6 <= w_skrg.hour < 12 else "PULANG" if 12 <= w_skrg.hour < 23 else "TUTUP"
     
-    if status == "TUTUP":
-        st.error("Sesi Tutup")
+    if status_sesi == "TUTUP":
+        st.error("🚫 Sesi Absensi sedang ditutup.")
     else:
-        nama = st.selectbox("Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
-        foto = st.camera_input("Foto")
-        if st.button("KIRIM") and foto:
-            # Upload & Kirim
-            res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": foto.getvalue()}).json()
-            link = res_img["data"]["url"]
-            payload = {"nama": nama, "tanggal": w_wib.strftime("%Y-%m-%d"), "jam": w_wib.strftime("%H:%M:%S"), "status": status, "foto_link": link}
-            requests.post(WEBAPP_URL, json=payload)
-            st.success("Terkirim!")
+        nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
+        foto = st.camera_input("Ambil Foto Wajah")
+        
+        if st.button("KIRIM DATA ABSENSI", use_container_width=True):
+            if foto:
+                with st.spinner("Memproses..."):
+                    try:
+                        # Anti-Mirror fisik
+                        img = Image.open(foto).convert("RGB")
+                        f_img = Image.fromarray(np.flip(np.array(img), axis=1))
+                        buf = io.BytesIO()
+                        f_img.save(buf, format="JPEG")
+                        
+                        r_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": buf.getvalue()}).json()
+                        link = r_img["data"]["url"]
+                        
+                        payload = {"nama": nama, "tanggal": w_skrg.strftime("%Y-%m-%d"), "jam": w_skrg.strftime("%H:%M:%S"), "status": status_sesi, "foto_link": link}
+                        requests.post(WEBAPP_URL, json=payload, timeout=20)
+                        st.success("✅ Berhasil! Data masuk ke sheet bulan berjalan.")
+                        st.balloons()
+                    except:
+                        st.error("Gagal mengirim data.")
+            else: st.warning("📸 Ambil foto dulu!")
 
+# --- HALAMAN REKAP ---
 else:
-    st.title("📊 Rekap Data")
-    list_b = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    st.markdown("<h2 style='text-align:center; color:white;'>📊 Rekap Absensi Bulanan</h2>", unsafe_allow_html=True)
+    # List bulan bahasa Indonesia sesuai tab Google Sheets Anda
+    list_b = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
     c1, c2 = st.columns(2)
-    bln = c1.selectbox("Bulan:", list_b, index=w_wib.month - 1)
-    thn = c2.selectbox("Tahun:", [2025, 2026, 2027], index=1)
+    b = c1.selectbox("Bulan:", list_b, index=w_skrg.month - 1)
+    t = c2.selectbox("Tahun:", [2025, 2026, 2027], index=1)
 
-    if st.button("🔍 Tampilkan Rekap"):
+    if st.button("🔍 Tampilkan Data Rekap", use_container_width=True):
         try:
-            # Menggunakan URL Deployment baru
-            response = requests.get(f"{WEBAPP_URL}?bulan={bln} {thn}", timeout=20)
-            data = response.json()
-            if data:
-                st.dataframe(pd.DataFrame(data), use_container_width=True)
+            # Cari berdasarkan nama tab "Februari 2026"
+            res = requests.get(f"{WEBAPP_URL}?bulan={b} {t}", timeout=25).json()
+            if res:
+                st.dataframe(pd.DataFrame(res), use_container_width=True)
             else:
-                st.info("Data kosong.")
+                st.info(f"Tab '{b} {t}' tidak ditemukan atau data kosong.")
         except Exception as e:
-            st.error(f"Server tidak merespon. Pastikan Deploy sudah 'Anyone'.")
+            st.error("Koneksi gagal. Cek URL Deployment Anda.")
