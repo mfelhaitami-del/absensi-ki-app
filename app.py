@@ -6,27 +6,23 @@ from PIL import Image, ImageOps
 import io
 
 # --- 1. KONFIGURASI ---
-# Pastikan API Key ImgBB dan URL Deployment Apps Script Anda sudah benar
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbw3AtbN2Znxq1XJDEYHkgQqC-G8SU_7RcwptjmzzS9dXNyd5iK8d-Kk3cKaODfl_FrC/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# --- 2. CUSTOM CSS (FIX MIRROR, BG, & GLASSMORPHISM) ---
+# --- 2. CUSTOM CSS (FIX MIRROR PREVIEW & UI) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
     
-    html, body, [class*="css"] { 
-        font-family: 'Poppins', sans-serif; 
-    }
+    html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
 
-    /* FIX PREVIEW CAMERA: Membalikkan preview agar terlihat seperti cermin */
+    /* Agar tampilan kamera di layar terasa seperti cermin (Mirror Preview) */
     [data-testid="stCameraInput"] video {
         transform: scaleX(-1);
     }
 
-    /* BACKGROUND GAMBAR LOGO PU */
     .stApp {
         background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), 
                     url("https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Logo_PU_%28RGB%29.jpg/960px-Logo_PU_%28RGB%29.jpg");
@@ -35,43 +31,35 @@ st.markdown("""
         background-attachment: fixed;
     }
     
-    /* Sidebar Styling */
     [data-testid="stSidebar"] { 
         background-color: rgba(15, 23, 42, 0.9) !important; 
         backdrop-filter: blur(10px);
     }
     [data-testid="stSidebar"] * { color: white !important; }
     
-    /* Box Jam Sidebar */
     .sidebar-time-box { 
         background-color: rgba(255,255,255,0.1); 
         padding: 15px; border-radius: 12px; text-align: center; 
         border: 1px solid #3b82f6; margin-bottom: 20px;
     }
 
-    /* Judul Halaman */
     .hero-title { 
         font-size: 32px; font-weight: 800; text-align: center; 
         color: #ffffff; margin-top: -30px; margin-bottom: 30px;
         text-shadow: 2px 4px 8px rgba(0,0,0,0.8);
     }
 
-    /* Styling Tabel Rekap Transparan */
+    /* Merapikan Tabel Rekap */
     [data-testid="stDataFrame"] {
-        background-color: transparent !important;
-    }
-    
-    .stDataFrame div[data-testid="stTable"] {
         background-color: rgba(255, 255, 255, 0.05) !important;
         border-radius: 10px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. FUNGSI JAM REAL-TIME (WIB) ---
+# --- 3. FUNGSI JAM WIB ---
 @st.fragment(run_every="1s")
 def jam_sidebar():
-    # Menghitung WIB (UTC+7)
     waktu_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
     st.markdown(f"""
     <div class="sidebar-time-box">
@@ -85,51 +73,55 @@ def jam_sidebar():
 # --- 4. NAVIGASI SIDEBAR ---
 with st.sidebar:
     st.markdown("### 🏢 MENU UTAMA")
-    menu = st.selectbox(
-        "Pilih Layanan:", 
-        ["📍 Absensi", "📊 Rekap Absensi"]
-    )
+    menu = st.selectbox("Pilih Layanan:", ["📍 Absensi", "📊 Rekap Absensi"])
     st.divider()
     waktu_aktif = jam_sidebar()
 
-# --- 5. HALAMAN 1: PRESENSI ---
+# --- 5. HALAMAN ABSENSI ---
 if menu == "📍 Absensi":
     st.markdown('<p class="hero-title">Absensi Tim KI Satker PPS Banten</p>', unsafe_allow_html=True)
     
-    # Logika Sesi Otomatis
     status_sesi = "TUTUP"
     if 6 <= waktu_aktif.hour < 12: status_sesi = "MASUK"
     elif 12 <= waktu_aktif.hour < 23: status_sesi = "PULANG"
     
     if status_sesi == "TUTUP":
-        st.error(f"🚫 Sesi Absensi Tutup. (Sekarang: {waktu_aktif.strftime('%H:%M:%S')} WIB)")
+        st.error(f"🚫 Sesi Absensi Tutup (Buka: 06:00 - 23:00 WIB).")
     else:
         st.info(f"📍 Sesi Sekarang: **Absen {status_sesi}**")
-        nama = st.selectbox("Pilih Nama:", [
+        nama = st.selectbox("Pilih Nama Anda:", [
             "Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", 
             "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", 
             "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"
         ])
-        foto = st.camera_input("Ambil Foto Wajah")
+        
+        foto = st.camera_input("Ambil Foto Wajah (Pastikan Terang)")
         
         if st.button("KIRIM DATA ABSENSI", use_container_width=True):
             if foto:
-                with st.spinner("Memproses foto & mengirim data..."):
+                with st.spinner("🔄 Memproses & Membalik Foto..."):
                     try:
-                        # --- PROSES UN-MIRROR HASIL FOTO ---
-                        img = Image.open(foto)
-                        img_flipped = ImageOps.mirror(img) # Membalik foto secara horizontal
+                        # --- LOGIKA UN-MIRROR HASIL FOTO ---
+                        # 1. Buka foto yang baru saja diambil
+                        img_raw = Image.open(foto)
                         
-                        # Simpan ke buffer memory
-                        buf = io.BytesIO()
-                        img_flipped.save(buf, format="JPEG")
-                        byte_im = buf.getvalue()
+                        # 2. Balik secara horizontal agar tulisan tidak terbalik
+                        img_corrected = ImageOps.mirror(img_raw)
+                        
+                        # 3. Konversi kembali ke bytes untuk dikirim via internet
+                        img_buffer = io.BytesIO()
+                        img_corrected.save(img_buffer, format="JPEG", quality=90)
+                        final_image_bytes = img_buffer.getvalue()
 
-                        # 1. Upload ke ImgBB
-                        res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": byte_im}).json()
+                        # --- PROSES KIRIM ---
+                        # Upload ke ImgBB
+                        res_img = requests.post(
+                            f"https://api.imgbb.com/1/upload?key={API_IMGBB}", 
+                            files={"image": ("absensi.jpg", final_image_bytes, "image/jpeg")}
+                        ).json()
                         link_foto = res_img["data"]["url"]
                         
-                        # 2. Payload Data
+                        # Payload ke Google Sheets
                         payload = {
                             "nama": nama, 
                             "tanggal": waktu_aktif.strftime("%Y-%m-%d"), 
@@ -138,20 +130,20 @@ if menu == "📍 Absensi":
                             "foto_link": link_foto
                         }
                         
-                        # 3. Kirim ke Google Apps Script
+                        # Kirim ke Apps Script
                         response = requests.post(WEBAPP_URL, json=payload, timeout=20)
                         
                         if response.status_code == 200:
-                            st.success(f"✅ Berhasil! Data Absen {status_sesi} Anda telah tercatat.")
+                            st.success(f"✅ Berhasil! Foto tidak terbalik & Absen {status_sesi} tercatat.")
                         else:
-                            st.error(f"Gagal mengirim (Status: {response.status_code}).")
+                            st.error("Gagal mengirim data ke Database.")
                             
                     except Exception as e:
                         st.error(f"⚠️ Kesalahan: {e}")
             else:
-                st.warning("⚠️ Silakan ambil foto wajah terlebih dahulu!")
+                st.warning("📸 Silakan ambil foto terlebih dahulu!")
 
-# --- 6. HALAMAN 2: REKAP ABSENSI ---
+# --- 6. HALAMAN REKAP ---
 else:
     st.markdown('<p class="hero-title">📊 Rekap Kehadiran Bulanan</p>', unsafe_allow_html=True)
     bulan_indo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
@@ -171,10 +163,8 @@ else:
                 df = pd.DataFrame(res)
                 df_tampil = df[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]]
                 df_tampil.index = range(1, len(df_tampil) + 1)
-                
-                st.write(f"### 📋 Laporan Periode: {p_bulan} {p_tahun}")
                 st.dataframe(df_tampil, use_container_width=True, height=500)
             else:
-                st.info(f"ℹ️ Belum ada data absensi untuk bulan {p_bulan} {p_tahun}.")
-        except Exception as e:
-            st.error("❌ Gagal memuat data rekap.")
+                st.info(f"Belum ada data untuk periode {p_bulan} {p_tahun}.")
+        except:
+            st.error("Gagal menyambung ke database rekap.")
