@@ -12,19 +12,16 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbw3AtbN2Znxq1XJDEYHkgQqC-G
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# --- 2. CUSTOM CSS (FIX TAMPILAN LAYAR) ---
+# --- 2. CUSTOM CSS (FIX VISUAL MIRROR) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
 
-    /* Membalikkan seluruh widget kamera secara visual agar preview tidak mirror */
-    [data-testid="stCameraInput"] {
-        transform: scaleX(-1);
-    }
-    
-    /* Membalikkan kembali teks tombol agar tidak terbalik tulisannya */
-    [data-testid="stCameraInput"] button {
+    /* Hanya membalik video live dan hasil jepretan di layar */
+    /* Teks label dan tombol tetap normal (tidak terbalik) */
+    [data-testid="stCameraInput"] video, 
+    [data-testid="stCameraInput"] img {
         transform: scaleX(-1);
     }
 
@@ -34,7 +31,10 @@ st.markdown("""
         background-size: cover; background-position: center; background-attachment: fixed;
     }
     
-    [data-testid="stSidebar"] { background-color: rgba(15, 23, 42, 0.9) !important; backdrop-filter: blur(10px); }
+    [data-testid="stSidebar"] { 
+        background-color: rgba(15, 23, 42, 0.9) !important; 
+        backdrop-filter: blur(10px); 
+    }
     [data-testid="stSidebar"] * { color: white !important; }
     
     .sidebar-time-box { 
@@ -45,11 +45,12 @@ st.markdown("""
     .hero-title { 
         font-size: 32px; font-weight: 800; text-align: center; 
         color: #ffffff; margin-top: -30px; margin-bottom: 30px;
+        text-shadow: 2px 4px 8px rgba(0,0,0,0.8);
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. FUNGSI JAM WIB ---
+# --- 3. FUNGSI JAM WIB REAL-TIME ---
 @st.fragment(run_every="1s")
 def jam_sidebar():
     waktu_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
@@ -62,7 +63,7 @@ def jam_sidebar():
     """, unsafe_allow_html=True)
     return waktu_skrg
 
-# --- 4. NAVIGASI ---
+# --- 4. NAVIGASI SIDEBAR ---
 with st.sidebar:
     st.markdown("### 🏢 MENU UTAMA")
     menu = st.selectbox("Pilih Layanan:", ["📍 Absensi", "📊 Rekap Absensi"])
@@ -80,24 +81,27 @@ if menu == "📍 Absensi":
     if status_sesi == "TUTUP":
         st.error(f"🚫 Sesi Absensi Tutup.")
     else:
-        nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
+        st.info(f"📍 Sesi Sekarang: **Absen {status_sesi}**")
+        nama = st.selectbox("Pilih Nama Anda:", [
+            "Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", 
+            "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", 
+            "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"
+        ])
         
         foto_raw = st.camera_input("Ambil Foto Wajah")
         
         if st.button("KIRIM DATA ABSENSI", use_container_width=True):
             if foto_raw:
-                with st.spinner("Memproses foto..."):
+                with st.spinner("Sinkronisasi & Mengirim Data..."):
                     try:
-                        # 1. Buka Gambar
+                        # 1. Buka foto & Hilangkan Metadata EXIF
                         img = Image.open(foto_raw).convert("RGB")
                         
-                        # 2. PROSES FLIP HORIZONTAL (Sangat Penting!)
-                        # Karena preview di layar sudah dibalik CSS, 
-                        # kita harus membalik datanya juga agar sinkron.
+                        # 2. Balik Pixel Secara Fisik (Agar hasil di GSheets tidak mirror)
                         img_array = np.array(img)
                         flipped_array = np.flip(img_array, axis=1) 
                         img_final = Image.fromarray(flipped_array)
-                        
+
                         # 3. Simpan ke Buffer
                         buf = io.BytesIO()
                         img_final.save(buf, format="JPEG", quality=95)
@@ -117,7 +121,7 @@ if menu == "📍 Absensi":
                         }
                         requests.post(WEBAPP_URL, json=payload, timeout=20)
                         
-                        st.success(f"✅ Berhasil! Data sudah terkirim.")
+                        st.success(f"✅ Berhasil! Absen {status_sesi} telah tercatat.")
                         
                     except Exception as e:
                         st.error(f"⚠️ Terjadi kesalahan: {e}")
@@ -128,11 +132,11 @@ if menu == "📍 Absensi":
 else:
     st.markdown('<p class="hero-title">📊 Rekap Absensi</p>', unsafe_allow_html=True)
     try:
-        # Menampilkan data bulan berjalan
-        res = requests.get(f"{WEBAPP_URL}?bulan={waktu_aktif.strftime('%B %Y')}").json()
+        res = requests.get(f"{WEBAPP_URL}?bulan={waktu_aktif.strftime('%B %Y')}", timeout=20).json()
         if res:
-            st.dataframe(pd.DataFrame(res)[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]], use_container_width=True)
+            df = pd.DataFrame(res)[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]]
+            st.dataframe(df, use_container_width=True)
         else:
-            st.info("Data tidak ditemukan.")
+            st.info("Data tidak tersedia untuk bulan ini.")
     except:
-        st.error("Gagal memuat rekap.")
+        st.error("Gagal memuat rekap data.")
