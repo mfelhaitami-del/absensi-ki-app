@@ -62,7 +62,7 @@ if menu == "📍 Absensi":
                         payload = {"nama": nama, "tanggal": w_skrg.strftime("%Y-%m-%d"), "jam": w_skrg.strftime("%H:%M:%S"), "status": status_sesi, "foto_link": link}
                         requests.post(WEBAPP_URL, json=payload, timeout=20)
                         st.success(f"✅ Berhasil absen {status_sesi}!")
-                        st.balloons()
+                        
                     except:
                         st.error("Gagal terhubung ke server.")
             else: st.warning("📸 Foto wajib diambil!")
