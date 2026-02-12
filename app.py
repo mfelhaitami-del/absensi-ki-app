@@ -10,7 +10,7 @@ from streamlit_geospatial import github_get_geolocation
 
 # --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbx3tEh9mSuiK4viX-GZZzEPoonb1Oi_j9fVrdNqlHXE5NjEccoBlar0ej5jodm6xbbv/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyJoDYYqRrxha8RG-ujACwPO8X68HgHZ1mkZr4ZPntFOu0w2Du12UyU5LP8Htb21EE/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
