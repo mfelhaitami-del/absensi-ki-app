@@ -10,7 +10,7 @@ import numpy as np
 # Ganti dengan API Key ImgBB Anda jika perlu
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
 # WAJIB: Ganti dengan URL Web App hasil Deployment "Anyone" terbaru
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwSBgnAIL--SekWYdcA8aoJXzdf3-_bX-dlI1KuLGkullXUWAAZwZ6w09In71hMkVWw/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyYqshMrQZSqp_m3KU3RHJD0g6_H7kN5tKGJQP7NfqPIE5lQU1f6uFS1t45gUD9iTsG/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
