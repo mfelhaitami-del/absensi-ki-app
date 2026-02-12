@@ -10,11 +10,12 @@ from streamlit_js_eval import get_geolocation
 
 # --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-# GANTI DENGAN URL EXEC TERBARU DARI GOOGLE APPS SCRIPT
+# Ganti dengan URL deployment Google Apps Script terbaru Anda
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwLJ-NveCCS-wm_Boyr-i5g3RBl93I2ayzvTmmqc0hzT0Kg2wNdH8Zk1OHSC_1A00to/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
+# CSS: Background & Kamera Anti-Mirror
 st.markdown("""
     <style>
     [data-testid="stCameraInput"] video, [data-testid="stCameraInput"] img { transform: scaleX(-1); }
@@ -27,19 +28,24 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- FUNGSI WATERMARK ---
 def process_watermark(foto, nama, lat, lon, w_skrg):
     img = Image.open(foto).convert("RGB")
-    img = Image.fromarray(np.flip(np.array(img), axis=1))
+    img = Image.fromarray(np.flip(np.array(img), axis=1)) # Anti-mirror
+    
     draw = ImageDraw.Draw(img)
     txt = f"Nama: {nama}\nWaktu: {w_skrg.strftime('%d/%m/%Y %H:%M:%S')}\nLokasi: {lat}, {lon}"
+    
+    # Menambahkan teks di pojok kiri bawah dengan bayangan agar terbaca
     pos = (15, img.height - 85)
-    # Efek bayangan teks agar terbaca
-    draw.multiline_text((pos[0]+1, pos[1]+1), txt, fill=(0, 0, 0))
-    draw.multiline_text(pos, txt, fill=(255, 255, 255))
+    draw.multiline_text((pos[0]+1, pos[1]+1), txt, fill=(0, 0, 0)) # Shadow
+    draw.multiline_text(pos, txt, fill=(255, 255, 255)) # Main Text
+    
     buf = io.BytesIO()
     img.save(buf, format="JPEG")
     return buf.getvalue()
 
+# --- FUNGSI KIRIM DATA ---
 def kirim_data(nama, status, foto_bytes, lokasi_str, w_skrg):
     try:
         r_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": foto_bytes}).json()
@@ -54,11 +60,13 @@ def kirim_data(nama, status, foto_bytes, lokasi_str, w_skrg):
     except:
         return False
 
+# --- DIALOG KONFIRMASI ---
 @st.dialog("Konfirmasi Absensi")
 def konfirmasi_dialog(nama, status, foto, lokasi_str, w_skrg):
     st.warning("⚠️ Pastikan nama sudah benar sesuai nama anda!")
     st.write(f"Nama: **{nama}** | Sesi: **{status}**")
     st.write(f"Koordinat: `{lokasi_str}`")
+    
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Ya, Sudah Benar", use_container_width=True, type="primary"):
@@ -76,6 +84,7 @@ def konfirmasi_dialog(nama, status, foto, lokasi_str, w_skrg):
         if st.button("Tidak, Ganti Nama", use_container_width=True):
             st.rerun()
 
+# --- SIDEBAR & JAM ---
 @st.fragment(run_every="1s")
 def jam_sidebar():
     w = datetime.datetime.now() + datetime.timedelta(hours=7)
@@ -90,18 +99,22 @@ with st.sidebar:
     st.divider()
     w_skrg = jam_sidebar()
 
+# --- HALAMAN UTAMA ---
 if menu == "📍 Absensi":
-    loc = get_geolocation()
+    loc = get_geolocation() # Meminta izin GPS
     st.markdown("<h2 style='text-align:center; color:white;'>Absensi Tim KI Satker PPS Banten</h2>", unsafe_allow_html=True)
+    
     status_sesi = "MASUK" if 6 <= w_skrg.hour < 12 else "PULANG" if 12 <= w_skrg.hour < 23 else "TUTUP"
+    
     if status_sesi == "TUTUP":
         st.error("🚫 Sesi Absensi sedang ditutup.")
     else:
         nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
         foto = st.camera_input("Ambil Foto Wajah")
+        
         if st.button("KIRIM DATA ABSENSI", use_container_width=True):
             if not loc:
-                st.error("📍 Akses Lokasi diperlukan! Mohon izinkan lokasi di browser Anda.")
+                st.error("📍 Akses Lokasi diperlukan! Mohon izinkan lokasi di browser Anda lalu refresh.")
             elif foto:
                 lat = loc['coords']['latitude']
                 lon = loc['coords']['longitude']
@@ -110,6 +123,7 @@ if menu == "📍 Absensi":
             else:
                 st.warning("📸 Silakan ambil foto terlebih dahulu!")
 else:
+    # Halaman Rekap (Kode sama seperti sebelumnya)
     st.markdown("<h2 style='text-align:center; color:white;'>📊 Rekap Absensi Bulanan</h2>", unsafe_allow_html=True)
     list_b = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
     b = st.selectbox("Pilih Bulan:", list_b, index=w_skrg.month - 1)
