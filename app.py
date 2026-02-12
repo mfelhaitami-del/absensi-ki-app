@@ -12,18 +12,18 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbw3AtbN2Znxq1XJDEYHkgQqC-G
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# --- 2. CUSTOM CSS (TRICK PAMUNGKAS) ---
+# --- 2. CUSTOM CSS (FIX TAMPILAN LAYAR) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
 
-    /* TRIK: Membalik seluruh widget kamera (Video + Pratinjau Snapshot) */
+    /* Membalikkan seluruh widget kamera secara visual agar preview tidak mirror */
     [data-testid="stCameraInput"] {
         transform: scaleX(-1);
     }
     
-    /* Membalikkan teks instruksi di dalam widget agar tidak ikut terbalik */
+    /* Membalikkan kembali teks tombol agar tidak terbalik tulisannya */
     [data-testid="stCameraInput"] button {
         transform: scaleX(-1);
     }
@@ -49,7 +49,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. FUNGSI JAM ---
+# --- 3. FUNGSI JAM WIB ---
 @st.fragment(run_every="1s")
 def jam_sidebar():
     waktu_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
@@ -86,38 +86,53 @@ if menu == "📍 Absensi":
         
         if st.button("KIRIM DATA ABSENSI", use_container_width=True):
             if foto_raw:
-                with st.spinner("Mengirim data..."):
+                with st.spinner("Memproses sinkronisasi foto..."):
                     try:
-                        # Karena widget kita balik (mirror secara visual), 
-                        # maka hasil tangkapannya secara teknis sudah 'normal' bagi sensor.
-                        # Jadi kita tinggal kirim tanpa perlu flip lagi di Python.
-                        
+                        # 1. Buka Gambar
                         img = Image.open(foto_raw).convert("RGB")
+                        
+                        # 2. PROSES FLIP HORIZONTAL (Sangat Penting!)
+                        # Karena preview di layar sudah dibalik CSS, 
+                        # kita harus membalik datanya juga agar sinkron.
+                        img_array = np.array(img)
+                        flipped_array = np.flip(img_array, axis=1) 
+                        img_final = Image.fromarray(flipped_array)
+                        
+                        # 3. Simpan ke Buffer
                         buf = io.BytesIO()
-                        img.save(buf, format="JPEG", quality=95)
-                        final_bytes = buf.getvalue()
+                        img_final.save(buf, format="JPEG", quality=95)
+                        byte_im = buf.getvalue()
 
-                        # 1. Upload ke ImgBB
+                        # 4. Upload ke ImgBB
                         res_img = requests.post(
                             f"https://api.imgbb.com/1/upload?key={API_IMGBB}", 
-                            files={"image": ("absensi.jpg", final_bytes, "image/jpeg")}
+                            files={"image": ("absensi.jpg", byte_im, "image/jpeg")}
                         ).json()
                         link_foto = res_img["data"]["url"]
                         
-                        # 2. Kirim ke Google Sheets
+                        # 5. Kirim ke Google Sheets
                         payload = {
                             "nama": nama, "tanggal": waktu_aktif.strftime("%Y-%m-%d"), 
                             "jam": waktu_aktif.strftime("%H:%M:%S"), "status": status_sesi, "foto_link": link_foto
                         }
                         requests.post(WEBAPP_URL, json=payload, timeout=20)
                         
-                        st.success(f"✅ Berhasil Terkirim!")
-                    
+                        st.success(f"✅ Berhasil! Data & Foto sudah normal (tidak mirror).")
+                        st.balloons()
                     except Exception as e:
                         st.error(f"⚠️ Terjadi kesalahan: {e}")
             else:
                 st.warning("📸 Silakan ambil foto terlebih dahulu!")
 
+# --- 6. HALAMAN REKAP ---
 else:
     st.markdown('<p class="hero-title">📊 Rekap Absensi</p>', unsafe_allow_html=True)
-    # ... (bagian rekap tetap)
+    try:
+        # Menampilkan data bulan berjalan
+        res = requests.get(f"{WEBAPP_URL}?bulan={waktu_aktif.strftime('%B %Y')}").json()
+        if res:
+            st.dataframe(pd.DataFrame(res)[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]], use_container_width=True)
+        else:
+            st.info("Data tidak ditemukan.")
+    except:
+        st.error("Gagal memuat rekap.")
