@@ -139,7 +139,7 @@ else:
             if res:
                 df = pd.DataFrame(res)
                 df.insert(0, 'No', range(1, 1 + len(df)))
-                st.table(df[['No', 'Nama', 'Tanggal', 'Jam Masuk', 'Jam Pulang']])
+                st.dataframe(df[['No', 'Nama', 'Tanggal', 'Jam Masuk', 'Jam Pulang']], hide_index=True, use_container_width=True)
             else:
                 st.info(f"Data absensi untuk periode {b} {t} belum tersedia.")
         except:
