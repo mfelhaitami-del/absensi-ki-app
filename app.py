@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import datetime
 import requests
+from PIL import Image, ImageOps
+import io
 
 # --- 1. KONFIGURASI ---
 # Pastikan API Key ImgBB dan URL Deployment Apps Script Anda sudah benar
@@ -19,12 +21,12 @@ st.markdown("""
         font-family: 'Poppins', sans-serif; 
     }
 
-    /* FIX CAMERA MIRROR: Membalikkan preview kamera agar tidak terbalik */
+    /* FIX PREVIEW CAMERA: Membalikkan preview agar terlihat seperti cermin */
     [data-testid="stCameraInput"] video {
         transform: scaleX(-1);
     }
 
-    /* BACKGROUND GAMBAR UTAMA */
+    /* BACKGROUND GAMBAR LOGO PU */
     .stApp {
         background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), 
                     url("https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Logo_PU_%28RGB%29.jpg/960px-Logo_PU_%28RGB%29.jpg");
@@ -54,7 +56,7 @@ st.markdown("""
         text-shadow: 2px 4px 8px rgba(0,0,0,0.8);
     }
 
-    /* Styling Tabel Rekap Tanpa List Putih */
+    /* Styling Tabel Rekap Transparan */
     [data-testid="stDataFrame"] {
         background-color: transparent !important;
     }
@@ -62,7 +64,6 @@ st.markdown("""
     .stDataFrame div[data-testid="stTable"] {
         background-color: rgba(255, 255, 255, 0.05) !important;
         border-radius: 10px;
-        border: none !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -70,6 +71,7 @@ st.markdown("""
 # --- 3. FUNGSI JAM REAL-TIME (WIB) ---
 @st.fragment(run_every="1s")
 def jam_sidebar():
+    # Menghitung WIB (UTC+7)
     waktu_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
     st.markdown(f"""
     <div class="sidebar-time-box">
@@ -80,7 +82,7 @@ def jam_sidebar():
     """, unsafe_allow_html=True)
     return waktu_skrg
 
-# --- 4. NAVIGASI SIDEBAR (DROPDOWN) ---
+# --- 4. NAVIGASI SIDEBAR ---
 with st.sidebar:
     st.markdown("### 🏢 MENU UTAMA")
     menu = st.selectbox(
@@ -94,6 +96,7 @@ with st.sidebar:
 if menu == "📍 Absensi":
     st.markdown('<p class="hero-title">Absensi Tim KI Satker PPS Banten</p>', unsafe_allow_html=True)
     
+    # Logika Sesi Otomatis
     status_sesi = "TUTUP"
     if 6 <= waktu_aktif.hour < 12: status_sesi = "MASUK"
     elif 12 <= waktu_aktif.hour < 23: status_sesi = "PULANG"
@@ -111,11 +114,19 @@ if menu == "📍 Absensi":
         
         if st.button("KIRIM DATA ABSENSI", use_container_width=True):
             if foto:
-                with st.spinner("Sedang memproses data..."):
+                with st.spinner("Memproses foto & mengirim data..."):
                     try:
+                        # --- PROSES UN-MIRROR HASIL FOTO ---
+                        img = Image.open(foto)
+                        img_flipped = ImageOps.mirror(img) # Membalik foto secara horizontal
+                        
+                        # Simpan ke buffer memory
+                        buf = io.BytesIO()
+                        img_flipped.save(buf, format="JPEG")
+                        byte_im = buf.getvalue()
+
                         # 1. Upload ke ImgBB
-                        files = {"image": foto.getvalue()}
-                        res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=files).json()
+                        res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": byte_im}).json()
                         link_foto = res_img["data"]["url"]
                         
                         # 2. Payload Data
@@ -131,12 +142,12 @@ if menu == "📍 Absensi":
                         response = requests.post(WEBAPP_URL, json=payload, timeout=20)
                         
                         if response.status_code == 200:
-                            st.success(f"✅ Berhasil! Absen {status_sesi} Anda telah tercatat.")
+                            st.success(f"✅ Berhasil! Data Absen {status_sesi} Anda telah tercatat.")
                         else:
                             st.error(f"Gagal mengirim (Status: {response.status_code}).")
                             
                     except Exception as e:
-                        st.error(f"⚠️ Kesalahan Koneksi: Pastikan internet stabil.")
+                        st.error(f"⚠️ Kesalahan: {e}")
             else:
                 st.warning("⚠️ Silakan ambil foto wajah terlebih dahulu!")
 
@@ -161,7 +172,7 @@ else:
                 df_tampil = df[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]]
                 df_tampil.index = range(1, len(df_tampil) + 1)
                 
-                st.write(f"### 📋 Periode: {p_bulan} {p_tahun}")
+                st.write(f"### 📋 Laporan Periode: {p_bulan} {p_tahun}")
                 st.dataframe(df_tampil, use_container_width=True, height=500)
             else:
                 st.info(f"ℹ️ Belum ada data absensi untuk bulan {p_bulan} {p_tahun}.")
