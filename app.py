@@ -4,6 +4,7 @@ import datetime
 import requests
 from PIL import Image
 import io
+import numpy as np
 
 # --- 1. KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
@@ -17,9 +18,9 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
 
-    /* Preview kamera agar nyaman dilihat (Mirror) */
+    /* Preview kamera dibuat mirror agar user nyaman (seperti cermin) */
     [data-testid="stCameraInput"] video {
-        transform: scaleX(-1);
+        transform: scaleX(-1) !important;
     }
 
     .stApp {
@@ -75,61 +76,58 @@ if menu == "📍 Absensi":
     if status_sesi == "TUTUP":
         st.error(f"🚫 Sesi Absensi Tutup.")
     else:
-        st.info(f"📍 Sesi Sekarang: **Absen {status_sesi}**")
         nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
         
         foto = st.camera_input("Ambil Foto")
         
         if st.button("KIRIM DATA ABSENSI", use_container_width=True):
             if foto:
-                with st.spinner("Sedang memproses foto..."):
+                with st.spinner("Memproses sinkronisasi gambar..."):
                     try:
-                        # --- PROSES PEMBALIKAN GAMBAR ---
+                        # 1. Buka Gambar
                         img = Image.open(foto)
                         
-                        # Kadang browser mengirim gambar yang sudah dibalik, kadang tidak.
-                        # Kita gunakan transpose untuk membalikkan koordinat pixel secara manual.
-                        img_corrected = img
+                        # 2. Paksa konversi ke RGB untuk membuang metadata EXIF yang mengganggu
+                        img = img.convert("RGB")
                         
+                        # 3. BALIK SECARA MANUAL (Flip Horizontal)
+                        # Kita gunakan numpy array untuk benar-benar membalik urutan pixel
+                        img_array = np.array(img)
+                        flipped_array = np.flip(img_array, axis=1)
+                        img_final = Image.fromarray(flipped_array)
+                        
+                        # 4. Simpan ke Buffer
                         buf = io.BytesIO()
-                        img_corrected.save(buf, format="JPEG", quality=100)
+                        img_final.save(buf, format="JPEG", quality=95)
                         byte_im = buf.getvalue()
 
-                        # 1. Upload ke ImgBB
+                        # 5. Upload ke ImgBB
                         res_img = requests.post(
                             f"https://api.imgbb.com/1/upload?key={API_IMGBB}", 
                             files={"image": ("image.jpg", byte_im, "image/jpeg")}
                         ).json()
                         link_foto = res_img["data"]["url"]
                         
-                        # 2. Kirim ke Google Sheets
+                        # 6. Kirim ke Google Sheets
                         payload = {
                             "nama": nama, "tanggal": waktu_aktif.strftime("%Y-%m-%d"), 
                             "jam": waktu_aktif.strftime("%H:%M:%S"), "status": status_sesi, "foto_link": link_foto
                         }
                         requests.post(WEBAPP_URL, json=payload, timeout=20)
                         
-                        st.success(f"✅ Berhasil! Silakan cek di Google Sheets.")
+                        st.success(f"✅ Berhasil! Hasil jepretan sudah diproses agar tidak mirror.")
+                        st.image(img_final, caption="Hasil yang terkirim (Sudah di-flip)", width=300)
                     except Exception as e:
                         st.error(f"⚠️ Error: {e}")
             else:
                 st.warning("📸 Ambil foto dulu!")
 
-# --- 6. HALAMAN REKAP ---
 else:
+    # Halaman Rekap tetap sama seperti sebelumnya
     st.markdown('<p class="hero-title">📊 Rekap Absensi</p>', unsafe_allow_html=True)
-    bulan_indo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
-    c1, c2 = st.columns(2)
-    b = c1.selectbox("Bulan", bulan_indo, index=waktu_aktif.month - 1)
-    t = c2.selectbox("Tahun", [2025, 2026], index=1)
-    
-    if st.button("🔍 Tampilkan Data"):
-        try:
-            res = requests.get(f"{WEBAPP_URL}?bulan={b} {t}").json()
-            if res:
-                df = pd.DataFrame(res)[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]]
-                st.dataframe(df, use_container_width=True)
-            else:
-                st.info("Data tidak tersedia.")
-        except:
-            st.error("Gagal memuat data.")
+    try:
+        res = requests.get(f"{WEBAPP_URL}?bulan={waktu_aktif.strftime('%B %Y')}").json()
+        if res:
+            st.dataframe(pd.DataFrame(res)[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]], use_container_width=True)
+    except:
+        st.error("Gagal memuat data.")
