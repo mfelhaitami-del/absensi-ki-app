@@ -8,7 +8,7 @@ import numpy as np
 
 # --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxQyN9RU6Vr2qXgWG2g0KIv3TjBFAgOCW2DRN-GgeNX4siHfbWRbbrgW5SnxBHl01H7/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzK3lLRydIWM5XiwdIDbKeGSJHHzw4_fB-nu9LXValZSxLNCR7W8KzYNOdJ3PRlMDJs/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
