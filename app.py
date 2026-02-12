@@ -149,7 +149,7 @@ else:
                     column_config={
                         "No": st.column_config.Column(
                             "No",
-                            width="small",  # Mengecilkan ukuran kolom No
+                            width="40",  # Mengecilkan ukuran kolom No
                         ),
                         "Nama": st.column_config.Column(
                             "Nama",
