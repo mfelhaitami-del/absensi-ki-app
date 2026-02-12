@@ -7,31 +7,28 @@ import io
 import numpy as np
 
 # --- 1. KONFIGURASI ---
-# Pastikan API Key dan URL Apps Script Anda benar
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbw3AtbN2Znxq1XJDEYHkgQqC-G8SU_7RcwptjmzzS9dXNyd5iK8d-Kk3cKaODfl_FrC/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# --- 2. CUSTOM CSS (UI & MIRROR PREVIEW) ---
+# --- 2. CUSTOM CSS ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
 
-    /* CSS agar LIVE video kamera terlihat seperti cermin */
+    /* Preview LIVE kamera agar mirror (nyaman saat berpose) */
     [data-testid="stCameraInput"] video {
         transform: scaleX(-1) !important;
     }
 
-    /* Background Logo PU */
     .stApp {
-        background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), 
+        background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), 
                     url("https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Logo_PU_%28RGB%29.jpg/960px-Logo_PU_%28RGB%29.jpg");
         background-size: cover; background-position: center; background-attachment: fixed;
     }
     
-    /* Sidebar styling */
     [data-testid="stSidebar"] { background-color: rgba(15, 23, 42, 0.9) !important; backdrop-filter: blur(10px); }
     [data-testid="stSidebar"] * { color: white !important; }
     
@@ -41,17 +38,16 @@ st.markdown("""
     }
 
     .hero-title { 
-        font-size: 30px; font-weight: 800; text-align: center; 
-        color: #ffffff; margin-top: -20px; margin-bottom: 25px;
-        text-shadow: 2px 4px 6px rgba(0,0,0,0.5);
+        font-size: 32px; font-weight: 800; text-align: center; 
+        color: #ffffff; margin-top: -30px; margin-bottom: 30px;
+        text-shadow: 2px 4px 8px rgba(0,0,0,0.8);
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. FUNGSI JAM WIB REAL-TIME ---
+# --- 3. FUNGSI JAM WIB ---
 @st.fragment(run_every="1s")
 def jam_sidebar():
-    # Menyesuaikan waktu ke WIB (UTC+7)
     waktu_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
     st.markdown(f"""
     <div class="sidebar-time-box">
@@ -62,109 +58,72 @@ def jam_sidebar():
     """, unsafe_allow_html=True)
     return waktu_skrg
 
-# --- 4. NAVIGASI SIDEBAR ---
+# --- 4. NAVIGASI ---
 with st.sidebar:
     st.markdown("### 🏢 MENU UTAMA")
     menu = st.selectbox("Pilih Layanan:", ["📍 Absensi", "📊 Rekap Absensi"])
     st.divider()
     waktu_aktif = jam_sidebar()
 
-# --- 5. HALAMAN 1: ABSENSI ---
+# --- 5. HALAMAN ABSENSI ---
 if menu == "📍 Absensi":
     st.markdown('<p class="hero-title">Absensi Tim KI Satker PPS Banten</p>', unsafe_allow_html=True)
     
-    # Penentuan Sesi
     status_sesi = "TUTUP"
     if 6 <= waktu_aktif.hour < 12: status_sesi = "MASUK"
     elif 12 <= waktu_aktif.hour < 23: status_sesi = "PULANG"
     
     if status_sesi == "TUTUP":
-        st.error(f"🚫 Sesi Absensi Tutup (Buka Jam 06:00 - 23:00 WIB).")
+        st.error(f"🚫 Sesi Absensi Tutup.")
     else:
-        st.info(f"📍 Sesi Sekarang: **Absen {status_sesi}**")
-        nama = st.selectbox("Pilih Nama Anda:", [
-            "Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", 
-            "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", 
-            "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"
-        ])
+        nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
         
-        # Ambil input kamera
-        foto_raw = st.camera_input("Ambil Foto Wajah")
-
-        final_image_bytes = None
-
-        # Jika foto dijepret (snapshot diambil)
-        if foto_raw:
-            # PROSES PEMBALIKAN (UN-MIRROR)
-            img = Image.open(foto_raw).convert("RGB")
-            img_array = np.array(img)
-            # Membalikkan array pixel secara horizontal
-            flipped_array = np.flip(img_array, axis=1) 
-            img_final = Image.fromarray(flipped_array)
-
-            # Menampilkan pratinjau hasil jepretan yang SUDAH NORMAL (TIDAK MIRROR)
-            st.write("### 📸 Pratinjau Hasil Foto (Normal)")
-            st.image(img_final, use_container_width=True)
-
-            # Konversi ke bytes untuk diupload
-            buf = io.BytesIO()
-            img_final.save(buf, format="JPEG", quality=90)
-            final_image_bytes = buf.getvalue()
+        # Bagian Ambil Foto (Hanya kamera saja tanpa pratinjau tambahan di bawahnya)
+        foto_raw = st.camera_input("Ambil Foto Wajah (Pastikan Terang)")
         
-        # Tombol Kirim
         if st.button("KIRIM DATA ABSENSI", use_container_width=True):
-            if final_image_bytes:
-                with st.spinner("Mengirim data absensi..."):
+            if foto_raw:
+                with st.spinner("Mengirim data..."):
                     try:
-                        # 1. Upload foto ke ImgBB
+                        # --- LOGIKA PEMBALIKAN DI LATAR BELAKANG ---
+                        img = Image.open(foto_raw).convert("RGB")
+                        img_array = np.array(img)
+                        # Membalikkan pixel secara horizontal agar tidak mirror
+                        flipped_array = np.flip(img_array, axis=1) 
+                        img_final = Image.fromarray(flipped_array)
+
+                        # Simpan ke byte stream untuk diunggah
+                        buf = io.BytesIO()
+                        img_final.save(buf, format="JPEG", quality=95)
+                        final_bytes = buf.getvalue()
+
+                        # 1. Upload ke ImgBB
                         res_img = requests.post(
                             f"https://api.imgbb.com/1/upload?key={API_IMGBB}", 
-                            files={"image": ("absensi.jpg", final_image_bytes, "image/jpeg")}
+                            files={"image": ("absensi.jpg", final_bytes, "image/jpeg")}
                         ).json()
                         link_foto = res_img["data"]["url"]
                         
-                        # 2. Kirim data teks ke Google Sheets
+                        # 2. Kirim ke Google Sheets
                         payload = {
-                            "nama": nama, 
-                            "tanggal": waktu_aktif.strftime("%Y-%m-%d"), 
-                            "jam": waktu_aktif.strftime("%H:%M:%S"), 
-                            "status": status_sesi, 
-                            "foto_link": link_foto
+                            "nama": nama, "tanggal": waktu_aktif.strftime("%Y-%m-%d"), 
+                            "jam": waktu_aktif.strftime("%H:%M:%S"), "status": status_sesi, "foto_link": link_foto
                         }
-                        response = requests.post(WEBAPP_URL, json=payload, timeout=20)
+                        requests.post(WEBAPP_URL, json=payload, timeout=20)
                         
-                        if response.status_code == 200:
-                            st.success(f"✅ Absen {status_sesi} Berhasil Dikirim!")
-                        else:
-                            st.error("Gagal mengirim data ke Google Sheets.")
+                        st.success(f"✅ Berhasil Terkirim!")
+                        st.balloons()
                     except Exception as e:
-                        st.error(f"⚠️ Kesalahan Koneksi: {e}")
+                        st.error(f"⚠️ Terjadi kesalahan: {e}")
             else:
-                st.warning("📸 Silakan jepret foto wajah terlebih dahulu!")
+                st.warning("📸 Silakan ambil foto terlebih dahulu!")
 
-# --- 6. HALAMAN 2: REKAP ABSENSI ---
+# --- 6. HALAMAN REKAP ---
 else:
-    st.markdown('<p class="hero-title">📊 Rekap Kehadiran Bulanan</p>', unsafe_allow_html=True)
-    bulan_indo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        p_bulan = st.selectbox("Pilih Bulan", bulan_indo, index=waktu_aktif.month - 1)
-    with c2:
-        p_tahun = st.selectbox("Pilih Tahun", [2025, 2026], index=1)
-    
-    if st.button("🔍 Tampilkan Rekap Data", use_container_width=True):
-        try:
-            fetch_url = f"{WEBAPP_URL}?bulan={p_bulan} {p_tahun}"
-            res = requests.get(fetch_url, timeout=20).json()
-            
-            if res:
-                df = pd.DataFrame(res)
-                # Menampilkan kolom yang diperlukan saja
-                df_tampil = df[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]]
-                df_tampil.index = range(1, len(df_tampil) + 1)
-                st.dataframe(df_tampil, use_container_width=True, height=400)
-            else:
-                st.info("Belum ada data absensi untuk periode ini.")
-        except:
-            st.error("Gagal menyambung ke database Google Sheets.")
+    st.markdown('<p class="hero-title">📊 Rekap Absensi</p>', unsafe_allow_html=True)
+    try:
+        res = requests.get(f"{WEBAPP_URL}?bulan={waktu_aktif.strftime('%B %Y')}").json()
+        if res:
+            st.dataframe(pd.DataFrame(res)[["Nama", "Tanggal", "Jam Masuk", "Jam Pulang"]], use_container_width=True)
+    except:
+        st.error("Gagal memuat data.")
