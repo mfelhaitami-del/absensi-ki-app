@@ -89,7 +89,7 @@ if menu == "📍 Absensi":
                         
                         # Kadang browser mengirim gambar yang sudah dibalik, kadang tidak.
                         # Kita gunakan transpose untuk membalikkan koordinat pixel secara manual.
-                        img_corrected = img.transpose(Image.FLIP_LEFT_RIGHT)
+                        img_corrected = img
                         
                         buf = io.BytesIO()
                         img_corrected.save(buf, format="JPEG", quality=100)
