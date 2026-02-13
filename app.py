@@ -9,110 +9,155 @@ import time
 
 # --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-# GANTI URL DI BAWAH DENGAN URL WEB APP GOOGLE SCRIPT ANDA YANG BARU
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxuH6AdWUeMkWagwsnYqhWO8_d_sgN0TO2TSBilPb7uiCFvx3MqoquFpx6TdAVmeLGV/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
-# CSS: Styling & Fix Camera Mirror
+# --- CSS: BACKGROUND PU & KAMERA ---
 st.markdown("""
     <style>
-    [data-testid="stCameraInput"] video { transform: scaleX(-1); border-radius: 10px; border: 3px solid #3b82f6; }
-    .stApp { background: #0e1117; color: white; }
-    .sidebar-box { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; border: 1px solid #3b82f6; text-align: center; }
+    /* Kamera tampilan layar (viewfinder) tidak mirror */
+    [data-testid="stCameraInput"] video { transform: scaleX(-1); border-radius: 15px; border: 2px solid #3b82f6; }
+    
+    .stApp {
+        background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), 
+        url("https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Logo_PU_%28RGB%29.jpg/960px-Logo_PU_%28RGB%29.jpg");
+        background-size: cover; background-attachment: fixed;
+    }
+    .sidebar-box { 
+        background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center; border: 1px solid #3b82f6; 
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNGSI WATERMARK & KIRIM ---
-def proses_dan_kirim(nama, status, foto_raw, waktu):
+# --- FUNGSI WATERMARK & PROSES GAMBAR ---
+def proses_gambar_absensi(foto, nama, w_skrg):
     try:
-        # 1. Olah Foto
-        img = Image.open(foto_raw).convert("RGB")
-        img = ImageOps.mirror(img) # Balik agar teks tidak terbalik
+        # 1. Buka & Balik Gambar (Agar hasil akhir TIDAK mirror)
+        img = Image.open(foto).convert("RGB")
+        img = ImageOps.mirror(img)
         
-        # 2. Gambar Watermark
+        # 2. Siapkan Watermark
         draw = ImageDraw.Draw(img)
-        tgl_str = waktu.strftime("%A, %d %b %Y").replace("Monday","Senin").replace("Tuesday","Selasa").replace("Wednesday","Rabu").replace("Thursday","Kamis").replace("Friday","Jumat").replace("Saturday","Sabtu").replace("Sunday","Minggu")
-        jam_str = waktu.strftime("%H:%M:%S") + " WIB"
+        hari_id = w_skrg.strftime("%A").replace("Monday","Senin").replace("Tuesday","Selasa").replace("Wednesday","Rabu").replace("Thursday","Kamis").replace("Friday","Jumat").replace("Saturday","Sabtu").replace("Sunday","Minggu")
+        tgl_str = w_skrg.strftime(f"{hari_id}, %d %B %Y")
+        jam_str = w_skrg.strftime("%H:%M:%S") + " WIB"
         
-        # Teks yang akan ditempel
-        teks_watermark = f"NAMA: {nama}\nWAKTU: {tgl_str}\nJAM: {jam_str}\nSTATUS: {status}"
+        watermark_text = f"{nama}\n{jam_str}\n{tgl_str}"
         
-        # Gunakan font bawaan (size disesuaikan dengan lebar gambar)
-        font_size = int(img.width * 0.04)
+        # Ukuran font otomatis (3.5% dari lebar gambar)
+        f_size = int(img.width * 0.035)
         try:
-            font = ImageFont.load_default()
+            font = ImageFont.load_default(size=f_size)
         except:
             font = ImageFont.load_default()
 
-        # Posisi di kiri bawah
-        posisi = (20, img.height - (font_size * 5))
-        
-        # Gambar Bayangan (Hitam) agar teks terbaca
-        draw.multiline_text((posisi[0]+2, posisi[1]+2), teks_watermark, fill="black", font=font, spacing=5)
+        # Posisi Kiri Bawah
+        margin = 25
+        # Gambar Bayangan Teks (Hitam)
+        draw.multiline_text((margin+2, img.height - (f_size*4) + 2), watermark_text, fill=(0,0,0), font=font, spacing=5)
         # Gambar Teks Utama (Putih)
-        draw.multiline_text(posisi, teks_watermark, fill="white", font=font, spacing=5)
-
-        # 3. Simpan ke Buffer
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=85)
+        draw.multiline_text((margin, img.height - (f_size*4)), watermark_text, fill=(255,255,255), font=font, spacing=5)
         
-        # 4. Upload ImgBB
-        file_foto = {"image": buf.getvalue()}
-        res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files=file_foto).json()
-        url_foto = res_img["data"]["url"]
-
-        # 5. Kirim ke Google Sheets
-        payload = {
-            "nama": nama,
-            "tanggal": waktu.strftime("%Y-%m-%d"),
-            "jam": waktu.strftime("%H:%M:%S"),
-            "status": status,
-            "foto_link": url_foto
-        }
-        r = requests.post(WEBAPP_URL, json=payload, timeout=15)
-        return r.status_code == 200
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        return buf.getvalue()
     except Exception as e:
-        st.error(f"Error Detail: {e}")
+        st.error(f"Gagal memproses gambar: {e}")
+        return None
+
+# --- FUNGSI KIRIM DATA ---
+def kirim_data(nama, status, foto_bytes, w_skrg):
+    try:
+        # Upload ke ImgBB
+        res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": foto_bytes}).json()
+        link_foto = res_img["data"]["url"]
+        
+        # Kirim ke Sheets
+        payload = {
+            "nama": nama, "tanggal": w_skrg.strftime("%Y-%m-%d"), 
+            "jam": w_skrg.strftime("%H:%M:%S"), "status": status, "foto_link": link_foto
+        }
+        response = requests.post(WEBAPP_URL, json=payload, timeout=20)
+        return response.status_code == 200
+    except:
         return False
 
-# --- UI APP ---
-with st.sidebar:
-    st.header("MENU")
-    menu = st.selectbox("Pilih Layanan:", ["📍 Presensi", "📊 Rekap"])
-    st.divider()
-    # Jam Digital Sidebar
-    w_skrg = datetime.datetime.now() + datetime.timedelta(hours=7)
-    st.markdown(f"""<div class='sidebar-box'>
-        <div style='font-size:12px;'>{w_skrg.strftime('%d %B %Y')}</div>
-        <div style='font-size:22px; font-weight:bold; color:#3b82f6;'>{w_skrg.strftime('%H:%M:%S')} WIB</div>
-    </div>""", unsafe_allow_html=True)
-
-if menu == "📍 Presensi":
-    st.title("Presensi Tim KI")
+# --- DIALOG KONFIRMASI (WARNING) ---
+@st.dialog("Konfirmasi Absensi")
+def konfirmasi_dialog(nama, status, foto, w_skrg):
+    st.warning("⚠️ Pastikan nama sudah benar sesuai identitas Anda!")
+    st.write(f"Nama: **{nama}**")
+    st.write(f"Sesi: **{status}**")
     
-    nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
-    
-    # Sesi Otomatis
-    sesi = "MASUK" if w_skrg.hour < 12 else "PULANG"
-    st.info(f"Sesi Aktif: **{sesi}**")
-    
-    foto = st.camera_input("Ambil Foto")
-    
-    if st.button("KIRIM ABSENSI SEKARANG", type="primary", use_container_width=True):
-        if foto is not None:
-            with st.spinner("Sedang memproses foto & mengirim data..."):
-                sukses = proses_dan_kirim(nama, sesi, foto, w_skrg)
-                if sukses:
-                    st.success(f"Berhasil! Absensi {nama} telah tercatat.")
-                    st.balloons()
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Ya, Kirim Sekarang", use_container_width=True, type="primary"):
+            with st.status("Memproses watermark & mengirim...", expanded=False) as s:
+                foto_final = proses_gambar_absensi(foto, nama, w_skrg)
+                if foto_final and kirim_data(nama, status, foto_final, w_skrg):
+                    s.update(label="✅ Berhasil Terkirim!", state="complete")
+                    st.toast("Data absensi berhasil disimpan.", icon="✅")
                     time.sleep(2)
                     st.rerun()
                 else:
-                    st.error("Gagal mengirim. Periksa koneksi atau URL Apps Script Anda.")
-        else:
-            st.warning("Silakan ambil foto terlebih dahulu!")
+                    s.update(label="❌ Gagal Mengirim!", state="error")
+    with c2:
+        if st.button("Batal", use_container_width=True):
+            st.rerun()
 
+# --- JAM SIDEBAR (FRAGMENT) ---
+@st.fragment(run_every="1s")
+def jam_sidebar():
+    w = datetime.datetime.now() + datetime.timedelta(hours=7)
+    st.markdown(f'''<div class="sidebar-box">
+        <span style="color:white; font-size:14px;">{w.strftime("%d %B %Y")}</span><br>
+        <span style="font-size:26px; color:#3b82f6; font-weight:bold;">{w.strftime("%H:%M:%S")}</span><br>
+        <small style="color:white;">WIB</small>
+    </div>''', unsafe_allow_html=True)
+    return w
+
+# --- UI SIDEBAR ---
+with st.sidebar:
+    st.header("🏢 MENU UTAMA")
+    menu = st.selectbox("Layanan:", ["📍 Absensi", "📊 Rekap Absensi"])
+    st.divider()
+    w_skrg = jam_sidebar()
+
+# --- HALAMAN ABSENSI ---
+if menu == "📍 Absensi":
+    st.markdown("<h2 style='text-align:center; color:white;'>Absensi Tim KI Satker PPS Banten</h2>", unsafe_allow_html=True)
+    
+    status_sesi = "MASUK" if 6 <= w_skrg.hour < 12 else "PULANG" if 12 <= w_skrg.hour < 23 else "TUTUP"
+    
+    if status_sesi == "TUTUP":
+        st.error("🚫 Sesi Absensi ditutup (Aktif 06:00 - 23:00 WIB).")
+    else:
+        st.info(f"Sesi Aktif: **{status_sesi}**")
+        nama = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
+        foto = st.camera_input("Ambil Foto Wajah")
+        
+        if st.button("KIRIM DATA ABSENSI", use_container_width=True, type="primary"):
+            if foto:
+                konfirmasi_dialog(nama, status_sesi, foto, w_skrg)
+            else:
+                st.warning("📸 Silakan ambil foto terlebih dahulu!")
+
+# --- HALAMAN REKAP ---
 else:
-    st.title("Rekap Absensi")
-    st.write("Data dapat dilihat langsung di Google Sheets Anda.")
+    st.markdown("<h2 style='text-align:center; color:white;'>📊 Rekap Absensi</h2>", unsafe_allow_html=True)
+    list_b = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+    c1, c2 = st.columns(2)
+    b = c1.selectbox("Bulan:", list_b, index=w_skrg.month - 1)
+    t = c2.selectbox("Tahun:", [2025, 2026], index=1)
+
+    if st.button("🔍 Tampilkan Data", use_container_width=True):
+        try:
+            res = requests.get(f"{WEBAPP_URL}?bulan={b} {t}", timeout=25).json()
+            if res:
+                df = pd.DataFrame(res)
+                st.dataframe(df, use_container_width=True, hide_index=True)
+            else:
+                st.info("Data belum tersedia.")
+        except:
+            st.error("Gagal mengambil data.")
