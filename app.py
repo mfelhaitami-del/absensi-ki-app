@@ -4,7 +4,6 @@ import datetime
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 import io
-import numpy as np
 import time
 
 # --- KONFIGURASI ---
@@ -16,7 +15,7 @@ st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 # --- CSS: BACKGROUND & KAMERA ---
 st.markdown("""
     <style>
-    /* Kamera tampilan saat membidik tetap mirror agar user nyaman seperti cermin */
+    /* Viewfinder tetap mirror agar user nyaman mengatur posisi wajah */
     [data-testid="stCameraInput"] video { transform: scaleX(-1); border-radius: 15px; border: 2px solid #3b82f6; }
     
     .stApp {
@@ -30,18 +29,22 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- FUNGSI WATERMARK (POSISI POJOK KIRI BAWAH) ---
-def proses_gambar_final(foto_pil, nama, status, w_skrg):
+# --- FUNGSI WATERMARK (POJOK KIRI BAWAH) ---
+def proses_watermark(img_input, nama, status, w_skrg):
     try:
-        # Foto_pil sudah dibalik (tidak mirror) dari fungsi utama
-        draw = ImageDraw.Draw(foto_pil)
+        # Gunakan salinan gambar agar tidak merusak preview
+        img = img_input.copy()
+        draw = ImageDraw.Draw(img)
+        
         hari_id = w_skrg.strftime("%A").replace("Monday","Senin").replace("Tuesday","Selasa").replace("Wednesday","Rabu").replace("Thursday","Kamis").replace("Friday","Jumat").replace("Saturday","Sabtu").replace("Sunday","Minggu")
         tgl_str = w_skrg.strftime(f"{hari_id}, %d %B %Y")
         jam_str = w_skrg.strftime("%H:%M:%S") + " WIB"
         
+        # Teks Watermark
         watermark_text = f"NAMA: {nama}\nSTATUS: {status}\nJAM: {jam_str}\nTANGGAL: {tgl_str}"
         
-        f_size = int(foto_pil.width * 0.035)
+        # Ukuran font dinamis
+        f_size = int(img.width * 0.035)
         try:
             font = ImageFont.load_default(size=f_size)
         except:
@@ -50,25 +53,27 @@ def proses_gambar_final(foto_pil, nama, status, w_skrg):
         # Posisi Pojok Kiri Bawah
         margin_x = 25
         line_height = f_size + 5
-        margin_y = foto_pil.height - (line_height * 4) - 25 
+        margin_y = img.height - (line_height * 4) - 30 
         
-        # Shadow & Teks Utama
+        # Gambar Bayangan (Hitam) & Teks (Putih)
         draw.multiline_text((margin_x + 2, margin_y + 2), watermark_text, fill=(0,0,0), font=font, spacing=5)
         draw.multiline_text((margin_x, margin_y), watermark_text, fill=(255,255,255), font=font, spacing=5)
         
         buf = io.BytesIO()
-        foto_pil.save(buf, format="JPEG", quality=90)
+        img.save(buf, format="JPEG", quality=90)
         return buf.getvalue()
     except Exception as e:
-        st.error(f"Gagal memproses watermark: {e}")
+        st.error(f"Error Watermark: {e}")
         return None
 
 # --- FUNGSI KIRIM DATA ---
 def kirim_data(nama, status, foto_bytes, w_skrg):
     try:
+        # 1. Upload ke ImgBB
         res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": foto_bytes}).json()
         link_foto = res_img["data"]["url"]
         
+        # 2. Payload Sheets
         payload = {
             "nama": nama, "tanggal": w_skrg.strftime("%Y-%m-%d"), 
             "jam": w_skrg.strftime("%H:%M:%S"), "status": status, "foto_link": link_foto
@@ -78,33 +83,35 @@ def kirim_data(nama, status, foto_bytes, w_skrg):
     except:
         return False
 
-# --- DIALOG KONFIRMASI ---
+# --- DIALOG KONFIRMASI (ANTI-MIRROR PREVIEW) ---
 @st.dialog("Konfirmasi Absensi")
-def konfirmasi_dialog(nama, status, foto_pil, w_skrg):
-    st.warning("⚠️ Pastikan nama sudah benar!")
-    st.write(f"Nama: **{nama}**")
-    st.write(f"Sesi: **{status}**")
+def konfirmasi_dialog(nama, status, img_normal, w_skrg):
+    st.warning("⚠️ Periksa kembali foto dan nama Anda!")
     
-    # Tampilkan preview foto yang sudah tidak mirror
-    st.image(foto_pil, caption="Preview Foto (Normal)", use_container_width=True)
+    # TAMPILKAN PREVIEW YANG SUDAH TIDAK MIRROR
+    st.image(img_normal, caption="Hasil Jepretan (Posisi Normal)", use_container_width=True)
+    
+    st.write(f"Nama: **{nama}**")
+    st.write(f"Status: **{status}**")
     
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Ya, Kirim Sekarang", use_container_width=True, type="primary"):
-            with st.status("Sedang mengirim data...", expanded=False) as s:
-                foto_final = proses_gambar_final(foto_pil, nama, status, w_skrg)
+            with st.status("Memproses & Mengirim...", expanded=False) as s:
+                # Proses watermark menggunakan gambar yang sudah normal
+                foto_final = proses_watermark(img_normal, nama, status, w_skrg)
                 if foto_final and kirim_data(nama, status, foto_final, w_skrg):
-                    s.update(label="✅ Berhasil!", state="complete")
-                    st.toast(f"Absen {status} Berhasil!", icon="✅")
+                    s.update(label="✅ Absensi Berhasil!", state="complete")
+                    st.toast("Data telah tersimpan di Google Sheets", icon="✅")
                     time.sleep(2)
                     st.rerun()
                 else:
-                    s.update(label="❌ Gagal kirim!", state="error")
+                    s.update(label="❌ Gagal mengirim data!", state="error")
     with col2:
-        if st.button("Batal", use_container_width=True):
+        if st.button("Batal / Ambil Ulang", use_container_width=True):
             st.rerun()
 
-# --- JAM SIDEBAR ---
+# --- JAM SIDEBAR (FRAGMENT) ---
 @st.fragment(run_every="1s")
 def jam_sidebar():
     w = datetime.datetime.now() + datetime.timedelta(hours=7)
@@ -118,7 +125,7 @@ def jam_sidebar():
 # --- UI UTAMA ---
 with st.sidebar:
     st.header("🏢 MENU UTAMA")
-    menu = st.selectbox("Layanan:", ["📍 Absensi", "📊 Rekap"])
+    menu = st.selectbox("Pilih Layanan:", ["📍 Absensi", "📊 Rekap"])
     st.divider()
     w_skrg = jam_sidebar()
 
@@ -128,23 +135,24 @@ if menu == "📍 Absensi":
     status_sesi = "MASUK" if 6 <= w_skrg.hour < 12 else "PULANG" if 12 <= w_skrg.hour < 23 else "TUTUP"
     
     if status_sesi == "TUTUP":
-        st.error("🚫 Sesi Absensi ditutup (Buka 06:00 - 23:00 WIB)")
+        st.error("🚫 Sesi Absensi ditutup (Buka jam 06:00 - 23:00 WIB)")
     else:
         st.info(f"Sesi Aktif: **{status_sesi}**")
-        nama_user = st.selectbox("Pilih Nama:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
+        nama_user = st.selectbox("Pilih Nama Anda:", ["Diana Lestari", "Tuhfah Aqdah Agna", "Dini Atsqiani", "Leily Chusnul Makrifah", "Mochamad Fajar Elhaitami", "Muhammad Farsya Indrawan", "M. Ridho Anwar", "Bebri Ananda Sinukaban"])
         
         foto_input = st.camera_input("Ambil Foto Wajah")
         
         if foto_input:
-            # --- PERBAIKAN MIRROR DI SINI ---
+            # --- LOGIKA ANTI-MIRROR SEBELUM PREVIEW ---
+            # Kita buka foto dan balikkan secara horizontal (mirror)
             img_raw = Image.open(foto_input).convert("RGB")
-            img_normal = ImageOps.mirror(img_raw) # Membalikkan hasil jepretan agar normal
+            img_normal = ImageOps.mirror(img_raw) 
             
-            # Tampilkan tombol kirim hanya jika foto sudah diambil
+            # Tampilkan tombol konfirmasi
             if st.button("KIRIM DATA ABSENSI", use_container_width=True, type="primary"):
                 konfirmasi_dialog(nama_user, status_sesi, img_normal, w_skrg)
         else:
-            st.warning("📸 Silakan ambil foto terlebih dahulu!")
+            st.warning("📸 Silakan ambil foto wajah untuk mengaktifkan tombol kirim.")
 else:
     st.markdown("<h2 style='text-align:center; color:white;'>📊 Rekap Absensi</h2>", unsafe_allow_html=True)
-    st.info("Fitur Rekap tersedia sesuai data di Google Sheets.")
+    st.write("Data dapat Anda akses langsung melalui link Google Sheets atau dashboard backend.")
