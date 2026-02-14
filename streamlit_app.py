@@ -11,7 +11,7 @@ import time
 # Ganti dengan API Key ImgBB Anda
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
 # Pastikan URL ini adalah URL /exec dari Deployment Apps Script TERBARU Anda
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyEPuDNAFhkm5C43mcKwZxlJOp_ZoszFSfoBeN5blVL2lyRRjBm7zhuiKEB96o-wQ8D/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwsiCIyYlxm_e2xqI8prV-qFZ6-y4UFwJeoWH1B8sGqADxb8Nrm1CMIwLXZh9BUm7hp/exec"
 
 st.set_page_config(page_title="Absensi Tim KI", layout="wide")
 
@@ -167,27 +167,20 @@ if menu == "📍 Absensi":
 
 # --- HALAMAN 📊 REKAP ABSENSI ---
 else:
-    st.markdown("<h2 style='text-align:center; color:white;'>📊 Rekap Absensi Bulanan</h2>", unsafe_allow_html=True)
-    list_b = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+    st.markdown("<h2 style='text-align:center;'>📊 Rekap Absensi Bulanan</h2>", unsafe_allow_html=True)
     
-    c1, c2 = st.columns(2)
-    b = c1.selectbox("Pilih Bulan:", list_b, index=w_skrg.month - 1)
-    t = c2.selectbox("Pilih Tahun:", [2025, 2026, 2027], index=1)
+    # ... (bagian pilih bulan dan tahun) ...
 
     if st.button("🔍 Tampilkan Data Rekap", use_container_width=True):
         try:
-            # Mengambil data dari Apps Script (sesuaikan logic doGet di GAS Anda)
             res = requests.get(f"{WEBAPP_URL}?bulan={b} {t}", timeout=25).json()
             if res:
                 df = pd.DataFrame(res)
-                # Menampilkan kolom standar (Link foto tidak ditampilkan di tabel Streamlit agar rapi)
-                st.dataframe(
-                    df, 
-                    hide_index=True, 
-                    use_container_width=True
-                )
-                st.caption("ℹ️ Untuk melihat foto preview, silakan buka langsung Google Spreadsheet Anda.")
+                # Tambahkan nomor urut agar lebih rapi
+                df.insert(0, 'No', range(1, 1 + len(df)))
+                
+                st.table(df) # Menggunakan st.table agar statis dan rapi
             else:
-                st.info(f"Data absensi untuk periode {b} {t} belum tersedia.")
+                st.info(f"Data periode {b} {t} belum tersedia.")
         except:
-            st.error("Gagal mengambil data. Pastikan Apps Script sudah di-deploy dengan doGet().")
+            st.error("Gagal mengambil data. Pastikan URL Apps Script sudah benar.")
