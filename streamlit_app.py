@@ -9,7 +9,7 @@ import time
 # --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
 # PENTING: Ganti dengan URL Apps Script /exec terbaru Anda
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzdotV1TABa3EbcF7knp5zFyAVi3DLo3bZI-nh7irLfZJZX2Lt2z2CAE_hWEbN4e-cV/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzd1EmPmGseDo5QwEnYZS16Qbaw4_Yo7YfXtctfsE2dugMkhGzIhUgrO_wWJHVF3sUB/exec"
 
 st.set_page_config(page_title="Absensi Tim KI Satker PPS", layout="wide")
 
