@@ -73,7 +73,6 @@ def konfirmasi_absen(nama, status, foto_raw, w_skrg):
                 payload = {"nama": nama, "tanggal": w_skrg.strftime("%Y-%m-%d"), "jam": w_skrg.strftime("%H:%M:%S"), "status": status, "foto_link": link_url}
                 requests.post(WEBAPP_URL, json=payload, timeout=20)
                 s.update(label="✅ Berhasil!", state="complete")
-                st.balloons()
                 time.sleep(2)
                 st.rerun()
 
