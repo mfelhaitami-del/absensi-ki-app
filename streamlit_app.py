@@ -92,7 +92,7 @@ with st.sidebar:
     w_skrg = jam_sidebar()
 
 if menu == "📍 Absensi":
-    st.title("📍 Absensi")
+    st.title("📍 Absensi KI Satker PPS Banten")
     status_sesi = "MASUK" if 6 <= w_skrg.hour < 12 else "PULANG" if 12 <= w_skrg.hour < 23 else "TUTUP"
     
     if status_sesi == "TUTUP":
