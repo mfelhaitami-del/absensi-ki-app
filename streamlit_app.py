@@ -8,7 +8,7 @@ import time
 
 # --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-# PENTING: Ganti dengan URL Apps Script /exec terbaru Anda
+# PASTIKAN URL INI ADALAH URL DEPLOYMENT TERBARU (Sesuai gambar Anda terakhir)
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzd1EmPmGseDo5QwEnYZS16Qbaw4_Yo7YfXtctfsE2dugMkhGzIhUgrO_wWJHVF3sUB/exec"
 
 st.set_page_config(page_title="Absensi Tim KI Satker PPS", layout="wide")
@@ -49,10 +49,9 @@ def olah_foto(foto, nama, status, w_skrg):
         teks_wm = f"NAMA: {nama}\nSTATUS: {status}\nJAM: {w_skrg.strftime('%H:%M:%S')} WIB\nTANGGAL: {hari_id}, {w_skrg.strftime('%d %B %Y')}"
         font = ImageFont.load_default()
         
-        # Posisi Watermark (Kiri Bawah)
         x, y = 25, img.height - 110
-        draw.multiline_text((x+2, y+2), teks_wm, fill="black", font=font, spacing=4) # Bayangan
-        draw.multiline_text((x, y), teks_wm, fill="white", font=font, spacing=4) # Teks Putih
+        draw.multiline_text((x+2, y+2), teks_wm, fill="black", font=font, spacing=4)
+        draw.multiline_text((x, y), teks_wm, fill="white", font=font, spacing=4)
         
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)
@@ -66,18 +65,24 @@ def konfirmasi_absen(nama, status, foto_raw, w_skrg):
         with st.status("Sedang memproses...") as s:
             foto_final = olah_foto(foto_raw, nama, status, w_skrg)
             if foto_final:
-                # 1. Upload ke ImgBB
                 res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": foto_final}).json()
                 link_url = res_img["data"]["url"]
-                # 2. Kirim ke Google Sheets
-                payload = {"nama": nama, "tanggal": w_skrg.strftime("%Y-%m-%d"), "jam": w_skrg.strftime("%H:%M:%S"), "status": status, "foto_link": link_url}
+                # Kirim data jam sebagai string murni agar tidak berantakan
+                payload = {
+                    "nama": nama, 
+                    "tanggal": w_skrg.strftime("%Y-%m-%d"), 
+                    "jam": w_skrg.strftime("%H:%M:%S"), 
+                    "status": status, 
+                    "foto_link": link_url
+                }
                 requests.post(WEBAPP_URL, json=payload, timeout=20)
                 s.update(label="✅ Berhasil!", state="complete")
-                time.sleep(2)
+                time.sleep(1)
                 st.rerun()
 
 @st.fragment(run_every="1s")
 def jam_sidebar():
+    # Sinkronisasi jam WIB
     w = datetime.datetime.now() + datetime.timedelta(hours=7)
     st.markdown(f'''<div class="sidebar-box">{w.strftime("%d %B %Y")}<br>
     <span style="font-size:26px; font-weight:bold; color:#3b82f6;">{w.strftime("%H:%M:%S")}</span><br>WIB</div>''', unsafe_allow_html=True)
@@ -117,9 +122,24 @@ else:
             res = requests.get(f"{WEBAPP_URL}?bulan={b} {t}", timeout=25).json()
             if res:
                 df = pd.DataFrame(res)
+                
+                # Tambahkan No
                 df.insert(0, 'No', range(1, 1 + len(df)))
-                st.dataframe(df, hide_index=True, use_container_width=True)
+                
+                # MEMAKSA KOLOM JAM TETAP STRING (Mencegah format 1899)
+                df['Jam Masuk'] = df['Jam Masuk'].astype(str)
+                df['Jam Pulang'] = df['Jam Pulang'].astype(str)
+                
+                st.dataframe(
+                    df, 
+                    hide_index=True, 
+                    use_container_width=True,
+                    column_config={
+                        "Jam Masuk": st.column_config.TextColumn("Jam Masuk"),
+                        "Jam Pulang": st.column_config.TextColumn("Jam Pulang")
+                    }
+                )
             else:
                 st.info("Data belum tersedia untuk periode ini.")
         except:
-            st.error("Gagal terhubung ke server. Deploy ulang Apps Script Anda.")
+            st.error("Gagal terhubung ke server. Pastikan Apps Script sudah di-Deploy ulang dengan doGet().")
