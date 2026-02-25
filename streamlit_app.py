@@ -8,12 +8,11 @@ import time
 
 # --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
-# PASTIKAN URL INI ADALAH URL DEPLOYMENT TERBARU (Sesuai gambar Anda terakhir)
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzd1EmPmGseDo5QwEnYZS16Qbaw4_Yo7YfXtctfsE2dugMkhGzIhUgrO_wWJHVF3sUB/exec"
+# GANTI DENGAN URL DEPLOYMENT BARU ANDA
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzGEgVFZDN4bYwLUZIAZswLaAd0GY1l6BxP7GkaSCkqDDltE_idUt071rRsCNTVcVbT/exec"
 
 st.set_page_config(page_title="Absensi Tim KI Satker PPS", layout="wide")
 
-# CSS: Custom Background, Camera Fix, & Sidebar Style
 st.markdown("""
     <style>
     [data-testid="stCameraInput"] video { transform: scaleX(-1); border-radius: 15px; border: 2px solid #3b82f6; }
@@ -26,120 +25,86 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# DAFTAR PEGAWAI (Urut Alfabetis A-Z)
 NAMA_PEGAWAI = [
-    "Bebri Ananda Sinukaban",
-    "Diana Lestari", 
-    "Dini Atsqiani", 
-    "Leily Chusnul Makrifah", 
-    "M. Ridho Anwar",
-    "Mochamad Fajar Elhaitami", 
-    "Muhammad Farsya Indrawan", 
-    "Tuhfah Aqdah Agna"
+    "Bebri Ananda Sinukaban", "Diana Lestari", "Dini Atsqiani", 
+    "Leily Chusnul Makrifah", "M. Ridho Anwar", "Mochamad Fajar Elhaitami", 
+    "Muhammad Farsya Indrawan", "Tuhfah Aqdah Agna"
 ]
 
 def olah_foto(foto, nama, status, w_skrg):
     try:
         img = Image.open(foto).convert("RGB")
-        img = ImageOps.mirror(img) # Hapus efek mirror kamera
+        img = ImageOps.mirror(img)
         draw = ImageDraw.Draw(img)
         hari_dict = {"Monday":"Senin","Tuesday":"Selasa","Wednesday":"Rabu","Thursday":"Kamis","Friday":"Jumat","Saturday":"Sabtu","Sunday":"Minggu"}
         hari_id = hari_dict.get(w_skrg.strftime("%A"), w_skrg.strftime("%A"))
         
+        # Watermark tetap menggunakan jam lokal HP untuk info di foto
         teks_wm = f"NAMA: {nama}\nSTATUS: {status}\nJAM: {w_skrg.strftime('%H:%M:%S')} WIB\nTANGGAL: {hari_id}, {w_skrg.strftime('%d %B %Y')}"
         font = ImageFont.load_default()
         
-        x, y = 25, img.height - 110
-        draw.multiline_text((x+2, y+2), teks_wm, fill="black", font=font, spacing=4)
-        draw.multiline_text((x, y), teks_wm, fill="white", font=font, spacing=4)
-        
+        draw.multiline_text((22, img.height-112), teks_wm, fill="black", font=font, spacing=4)
+        draw.multiline_text((20, img.height-110), teks_wm, fill="white", font=font, spacing=4)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=85)
         return buf.getvalue()
     except: return None
 
-@st.dialog("Konfirmasi Absensi")
+@st.dialog("Konfirmasi")
 def konfirmasi_absen(nama, status, foto_raw, w_skrg):
-    st.write(f"Kirim data absen **{status}** untuk **{nama}**?")
-    if st.button("YA, KIRIM SEKARANG", use_container_width=True, type="primary"):
-        with st.status("Sedang memproses...") as s:
+    st.write(f"Kirim absen **{status}** untuk **{nama}**?")
+    if st.button("YA, KIRIM", use_container_width=True, type="primary"):
+        with st.status("Sedang mengirim...") as s:
             foto_final = olah_foto(foto_raw, nama, status, w_skrg)
             if foto_final:
                 res_img = requests.post(f"https://api.imgbb.com/1/upload?key={API_IMGBB}", files={"image": foto_final}).json()
                 link_url = res_img["data"]["url"]
-                # Kirim data jam sebagai string murni agar tidak berantakan
-                payload = {
-                    "nama": nama, 
-                    "tanggal": w_skrg.strftime("%Y-%m-%d"), 
-                    "jam": w_skrg.strftime("%H:%M:%S"), 
-                    "status": status, 
-                    "foto_link": link_url
-                }
+                
+                # Payload: Jam tidak dikirim dari sini agar tidak ada selisih
+                payload = {"nama": nama, "status": status, "foto_link": link_url, "tanggal": w_skrg.strftime("%Y-%m-%d")}
                 requests.post(WEBAPP_URL, json=payload, timeout=20)
+                
                 s.update(label="✅ Berhasil!", state="complete")
                 time.sleep(1)
                 st.rerun()
 
 @st.fragment(run_every="1s")
 def jam_sidebar():
-    # Sinkronisasi jam WIB
     w = datetime.datetime.now() + datetime.timedelta(hours=7)
-    st.markdown(f'''<div class="sidebar-box">{w.strftime("%d %B %Y")}<br>
-    <span style="font-size:26px; font-weight:bold; color:#3b82f6;">{w.strftime("%H:%M:%S")}</span><br>WIB</div>''', unsafe_allow_html=True)
+    st.markdown(f'''<div class="sidebar-box">{w.strftime("%d %B %Y")}<br><span style="font-size:26px; font-weight:bold; color:#3b82f6;">{w.strftime("%H:%M:%S")}</span><br>WIB</div>''', unsafe_allow_html=True)
     return w
 
-# --- MENU UTAMA ---
 with st.sidebar:
     st.header("🏢 MENU")
-    menu = st.selectbox("Pilih Layanan:", ["📍 Absensi", "📊 Rekap Data"])
+    menu = st.selectbox("Layanan:", ["📍 Absensi", "📊 Rekap Data"])
     st.divider()
     w_skrg = jam_sidebar()
 
 if menu == "📍 Absensi":
-    st.title("📍 Absensi KI Satker PPS Banten")
+    st.title("📍 Absensi")
     status_sesi = "MASUK" if 6 <= w_skrg.hour < 12 else "PULANG" if 12 <= w_skrg.hour < 23 else "TUTUP"
-    
-    if status_sesi == "TUTUP":
-        st.error("🚫 Sesi Absensi Sudah Ditutup (Buka 06:00 - 23:00 WIB)")
+    if status_sesi == "TUTUP": st.error("🚫 Sesi Absensi Tutup")
     else:
-        st.info(f"Sesi Aktif: **{status_sesi}**")
-        nama_pilih = st.selectbox("Pilih Nama Anda:", NAMA_PEGAWAI)
+        nama_pilih = st.selectbox("Pilih Nama:", NAMA_PEGAWAI)
         foto_cap = st.camera_input("Ambil Foto")
-        
         if st.button("KIRIM DATA", use_container_width=True, type="primary"):
             if foto_cap: konfirmasi_absen(nama_pilih, status_sesi, foto_cap, w_skrg)
-            else: st.warning("📸 Silakan ambil foto terlebih dahulu!")
-
+            else: st.warning("📸 Foto belum diambil!")
 else:
     st.title("📊 Rekap Data Absensi")
     list_bln = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
     c1, c2 = st.columns(2)
-    b = c1.selectbox("Bulan:", list_bln, index=w_skrg.month-1)
-    t = c2.selectbox("Tahun:", [2025, 2026], index=1)
+    b = c1.selectbox("Bulan:", list_bln, index=w_skrg.month-1); t = c2.selectbox("Tahun:", [2025, 2026], index=1)
     
     if st.button("🔍 Tampilkan Rekap", use_container_width=True):
         try:
             res = requests.get(f"{WEBAPP_URL}?bulan={b} {t}", timeout=25).json()
             if res:
                 df = pd.DataFrame(res)
-                
-                # Tambahkan No
-                df.insert(0, 'No', range(1, 1 + len(df)))
-                
-                # MEMAKSA KOLOM JAM TETAP STRING (Mencegah format 1899)
+                # Paksa kolom jam menjadi teks agar Streamlit tidak mengubah zona waktu
                 df['Jam Masuk'] = df['Jam Masuk'].astype(str)
                 df['Jam Pulang'] = df['Jam Pulang'].astype(str)
-                
-                st.dataframe(
-                    df, 
-                    hide_index=True, 
-                    use_container_width=True,
-                    column_config={
-                        "Jam Masuk": st.column_config.TextColumn("Jam Masuk"),
-                        "Jam Pulang": st.column_config.TextColumn("Jam Pulang")
-                    }
-                )
-            else:
-                st.info("Data belum tersedia untuk periode ini.")
-        except:
-            st.error("Gagal terhubung ke server. Pastikan Apps Script sudah di-Deploy ulang dengan doGet().")
+                df.insert(0, 'No', range(1, 1 + len(df)))
+                st.dataframe(df, hide_index=True, use_container_width=True)
+            else: st.info("Data belum tersedia.")
+        except: st.error("Gagal terhubung ke server.")
