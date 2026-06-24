@@ -9,7 +9,7 @@ import time
 # --- KONFIGURASI ---
 API_IMGBB = "4c3fb57e24494624fd12e23156c0c6b0"
 # GANTI DENGAN URL DEPLOYMENT BARU ANDA
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwAioVaa0D2lrO02sXOHwoPW3A_PjxixG57rMbSClkIiFIsC7oWAEoONdtkJ15rbtk/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbycAuO8oh8-d82td1-anbnkUeEv7ztSVFK41mhFLlvTpXWqXDNB9krXQWPCz80Jy1OK/exec"
 
 st.set_page_config(page_title="Absensi Tim KI Satker PPS", layout="wide")
 
@@ -27,7 +27,7 @@ st.markdown("""
 
 NAMA_PEGAWAI = [
     "Mulyaman Ramimpus (Driver 1)", "Umar Hadapi (Driver 2)", "Asep Pudin (Security 1)", 
-    "M. Abdu Rahman (Security 2)", "Mustaji (Pramubakti 1)", "Ii Safii (Pramubakti 2)"
+    "M. Abdu Rahman (Security 2)", "Mustaji (Pramubakti 1)", "Ii Safii (Pramubakti 2)", "Bilal Ahmad (Security 3)", "Kusni Mubarok (Security 4)",
 ]
 
 def olah_foto(foto, nama, status, w_skrg):
