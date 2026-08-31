@@ -81,7 +81,7 @@ with st.sidebar:
 
 if menu == "📍 Absensi":
     st.title("📍 Absensi")
-    status_sesi = "MASUK" if 6 <= w_skrg.hour < 12 else "PULANG" if 12 <= w_skrg.hour < 23 else "TUTUP"
+    status_sesi = "HADIR" if 6 <= w_skrg.hour < 12 else "HADIR" if 12 <= w_skrg.hour < 24 else "TUTUP"
     if status_sesi == "TUTUP": st.error("🚫 Sesi Absensi Tutup")
     else:
         nama_pilih = st.selectbox("Pilih Nama:", NAMA_PEGAWAI)
